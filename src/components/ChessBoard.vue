@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { Chess } from 'chess.js'
 import '@chrisoakman/chessboardjs/dist/chessboard-1.0.0.min.css'
 
@@ -9,13 +9,113 @@ interface BoardApi {
 }
 
 type BoardColor = 'w' | 'b'
+type PromotionPiece = 'q' | 'r' | 'b' | 'n'
+
+interface PlayedMove {
+  from: string
+  to: string
+  san: string
+  promotion?: PromotionPiece
+}
+
+interface PgnImportPayload {
+  id: number
+  text: string
+}
+
+const props = defineProps<{
+  importPgn?: PgnImportPayload
+}>()
+
+const emit = defineEmits<{
+  'moves-updated': [moves: string[]]
+  'pgn-import-status': [payload: { ok: boolean; message: string }]
+}>()
 
 const boardEl = ref<HTMLElement | null>(null)
 const game = new Chess()
+const playedMoves = ref<PlayedMove[]>([])
+const currentPly = ref(0)
 let board: BoardApi | null = null
+
+const syncBoardToCursor = () => {
+  game.reset()
+  for (let i = 0; i < currentPly.value; i += 1) {
+    const move = playedMoves.value[i]
+    if (!move) break
+    game.move(move)
+  }
+
+  board?.position(game.fen(), false)
+}
+
+const emitMoveList = () => {
+  emit(
+    'moves-updated',
+    playedMoves.value.map((playedMove) => playedMove.san),
+  )
+}
+
+const importPgn = (pgnText: string) => {
+  const trimmed = pgnText.trim()
+  if (!trimmed) {
+    emit('pgn-import-status', { ok: false, message: 'Paste a PGN before importing.' })
+    return
+  }
+
+  const importer = new Chess()
+  try {
+    importer.loadPgn(trimmed)
+  } catch (_error) {
+    emit('pgn-import-status', { ok: false, message: 'Invalid PGN. Please check the format.' })
+    return
+  }
+
+  const verboseMoves = importer.history({ verbose: true })
+  playedMoves.value = verboseMoves.map((move) => ({
+    from: move.from,
+    to: move.to,
+    san: move.san,
+    promotion: move.promotion as PromotionPiece | undefined,
+  }))
+  currentPly.value = playedMoves.value.length
+  syncBoardToCursor()
+  emitMoveList()
+  emit('pgn-import-status', {
+    ok: true,
+    message: `Imported ${playedMoves.value.length} move${playedMoves.value.length === 1 ? '' : 's'}.`,
+  })
+}
+
+const isTypingElement = (target: EventTarget | null) => {
+  const el = target as HTMLElement | null
+  if (!el) return false
+  const tag = el.tagName.toLowerCase()
+  return tag === 'input' || tag === 'textarea' || el.isContentEditable
+}
+
+const onKeyDown = (event: KeyboardEvent) => {
+  if (isTypingElement(event.target)) return
+
+  if (event.key === 'ArrowLeft') {
+    if (currentPly.value === 0) return
+    event.preventDefault()
+    currentPly.value -= 1
+    syncBoardToCursor()
+    return
+  }
+
+  if (event.key === 'ArrowRight') {
+    if (currentPly.value >= playedMoves.value.length) return
+    event.preventDefault()
+    currentPly.value += 1
+    syncBoardToCursor()
+  }
+}
 
 onMounted(async () => {
   if (!boardEl.value) return
+  emit('moves-updated', [])
 
   // chessboard.js expects jQuery and exposes a global constructor.
   const jqueryModule = await import('jquery')
@@ -43,6 +143,9 @@ onMounted(async () => {
   }
 
   const onDrop = (source: string, target: string) => {
+    // Cancel if user drops outside the board or back on the origin square.
+    if (target === 'offboard' || source === target) return 'snapback'
+
     const move = game.move({
       from: source,
       to: target,
@@ -50,6 +153,20 @@ onMounted(async () => {
     })
 
     if (!move) return 'snapback'
+
+    if (currentPly.value < playedMoves.value.length) {
+      playedMoves.value = playedMoves.value.slice(0, currentPly.value)
+    }
+
+    playedMoves.value.push({
+      from: source,
+      to: target,
+      san: move.san,
+      promotion: move.promotion as PromotionPiece | undefined,
+    })
+    currentPly.value = playedMoves.value.length
+    emitMoveList()
+
     return undefined
   }
 
@@ -62,9 +179,24 @@ onMounted(async () => {
     showNotation: true,
     pieceTheme: '/chesspieces/wikipedia/{piece}.png',
   })
+
+  if (props.importPgn?.text) {
+    importPgn(props.importPgn.text)
+  }
+
+  window.addEventListener('keydown', onKeyDown)
 })
 
+watch(
+  () => props.importPgn?.id,
+  () => {
+    if (!props.importPgn || !board) return
+    importPgn(props.importPgn.text)
+  },
+)
+
 onBeforeUnmount(() => {
+  window.removeEventListener('keydown', onKeyDown)
   board?.destroy?.()
   board = null
 })

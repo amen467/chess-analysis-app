@@ -1,9 +1,30 @@
 <script setup lang="ts">
+import { ref } from 'vue'
 import ChessBoard from '@/components/ChessBoard.vue'
 import SideBar from '@/components/SideBar.vue'
 import AnalysisPanel from '@/components/AnalysisPanel.vue'
 import ChatWindow from '@/components/ChatWindow.vue'
 import MoveList from '@/components/MoveList.vue'
+
+const moves = ref<string[]>([])
+const pgnInput = ref('')
+const pgnImportRequest = ref<{ id: number; text: string }>()
+const pgnImportStatus = ref<{ ok: boolean; message: string }>()
+
+const handleMovesUpdated = (nextMoves: string[]) => {
+  moves.value = nextMoves
+}
+
+const importPgn = () => {
+  pgnImportRequest.value = {
+    id: Date.now(),
+    text: pgnInput.value,
+  }
+}
+
+const handlePgnImportStatus = (payload: { ok: boolean; message: string }) => {
+  pgnImportStatus.value = payload
+}
 </script>
 
 <template>
@@ -14,14 +35,36 @@ import MoveList from '@/components/MoveList.vue'
         <h1>Analyze games with Stockfish + Chat</h1>
       </div>
       <div class="header-actions">
-        <button type="button" class="ghost">Import PGN</button>
+        <button type="button" class="ghost" @click="importPgn">Import PGN</button>
         <button type="button" class="primary">Run Analysis</button>
       </div>
     </header>
 
+    <section class="importer">
+      <label for="pgn-input">PGN Input</label>
+      <textarea
+        id="pgn-input"
+        v-model="pgnInput"
+        placeholder='Paste PGN here (example: 1. e4 e5 2. Nf3 Nc6 3. Bb5 a6)'
+      />
+      <div class="importer-actions">
+        <button type="button" class="primary" @click="importPgn">Load PGN</button>
+        <p
+          v-if="pgnImportStatus"
+          :class="['import-status', pgnImportStatus.ok ? 'success' : 'error']"
+        >
+          {{ pgnImportStatus.message }}
+        </p>
+      </div>
+    </section>
+
     <main class="layout">
       <section class="board-area">
-        <ChessBoard />
+        <ChessBoard
+          :import-pgn="pgnImportRequest"
+          @moves-updated="handleMovesUpdated"
+          @pgn-import-status="handlePgnImportStatus"
+        />
       </section>
       <section class="sidebar-area">
         <SideBar />
@@ -31,7 +74,7 @@ import MoveList from '@/components/MoveList.vue'
         <AnalysisPanel />
       </section>
       <section class="moves-area">
-        <MoveList />
+        <MoveList :moves="moves" />
       </section>
       <section class="chat-area">
         <ChatWindow />
@@ -102,6 +145,49 @@ h1 {
   grid-template-columns: 1fr;
   grid-template-rows: auto auto auto;
   gap: 1rem;
+}
+
+.importer {
+  display: grid;
+  gap: 0.6rem;
+  padding: 1rem;
+  border: 1px solid #dbe2ea;
+  border-radius: 12px;
+  background: #ffffff;
+}
+
+.importer label {
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: #0f172a;
+}
+
+.importer textarea {
+  min-height: 120px;
+  resize: vertical;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 0.7rem;
+  font: inherit;
+}
+
+.importer-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.import-status {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.import-status.success {
+  color: #166534;
+}
+
+.import-status.error {
+  color: #b91c1c;
 }
 
 .board-area {
