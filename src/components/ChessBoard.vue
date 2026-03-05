@@ -30,6 +30,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   'moves-updated': [moves: string[]]
   'pgn-import-status': [payload: { ok: boolean; message: string }]
+  'position-updated': [fen: string]
 }>()
 
 const boardEl = ref<HTMLElement | null>(null)
@@ -56,7 +57,11 @@ const emitMoveList = () => {
   )
 }
 
-const importPgn = (pgnText: string) => {
+const emitPosition = () => {
+  emit('position-updated', game.fen())
+}
+
+const applyImportedPgn = (pgnText: string) => {
   const trimmed = pgnText.trim()
   if (!trimmed) {
     emit('pgn-import-status', { ok: false, message: 'Paste a PGN before importing.' })
@@ -81,6 +86,7 @@ const importPgn = (pgnText: string) => {
   currentPly.value = playedMoves.value.length
   syncBoardToCursor()
   emitMoveList()
+  emitPosition()
   emit('pgn-import-status', {
     ok: true,
     message: `Imported ${playedMoves.value.length} move${playedMoves.value.length === 1 ? '' : 's'}.`,
@@ -102,6 +108,7 @@ const onKeyDown = (event: KeyboardEvent) => {
     event.preventDefault()
     currentPly.value -= 1
     syncBoardToCursor()
+    emitPosition()
     return
   }
 
@@ -110,6 +117,7 @@ const onKeyDown = (event: KeyboardEvent) => {
     event.preventDefault()
     currentPly.value += 1
     syncBoardToCursor()
+    emitPosition()
   }
 }
 
@@ -166,6 +174,7 @@ onMounted(async () => {
     })
     currentPly.value = playedMoves.value.length
     emitMoveList()
+    emitPosition()
 
     return undefined
   }
@@ -181,7 +190,9 @@ onMounted(async () => {
   })
 
   if (props.importPgn?.text) {
-    importPgn(props.importPgn.text)
+    applyImportedPgn(props.importPgn.text)
+  } else {
+    emitPosition()
   }
 
   window.addEventListener('keydown', onKeyDown)
@@ -191,7 +202,7 @@ watch(
   () => props.importPgn?.id,
   () => {
     if (!props.importPgn || !board) return
-    importPgn(props.importPgn.text)
+    applyImportedPgn(props.importPgn.text)
   },
 )
 

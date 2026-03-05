@@ -1,21 +1,27 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { onBeforeUnmount, onMounted, ref } from 'vue'
 import ChessBoard from '@/components/ChessBoard.vue'
 import SideBar from '@/components/SideBar.vue'
 import AnalysisPanel from '@/components/AnalysisPanel.vue'
 import ChatWindow from '@/components/ChatWindow.vue'
 import MoveList from '@/components/MoveList.vue'
+import { useStockfish } from '@/composables/useStockfish'
 
 const moves = ref<string[]>([])
 const pgnInput = ref('')
 const pgnImportRequest = ref<{ id: number; text: string }>()
 const pgnImportStatus = ref<{ ok: boolean; message: string }>()
+const currentFen = ref('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1')
+const analysisDepth = ref(14)
+const analysisLines = ref(3)
+
+const { isReady, isAnalyzing, evaluation, lastError, start, destroy, analyzePosition } = useStockfish()
 
 const handleMovesUpdated = (nextMoves: string[]) => {
   moves.value = nextMoves
 }
 
-const importPgn = () => {
+const requestPgnImport = () => {
   pgnImportRequest.value = {
     id: Date.now(),
     text: pgnInput.value,
@@ -25,6 +31,31 @@ const importPgn = () => {
 const handlePgnImportStatus = (payload: { ok: boolean; message: string }) => {
   pgnImportStatus.value = payload
 }
+
+const handlePositionUpdated = (fen: string) => {
+  currentFen.value = fen
+}
+
+const runAnalysis = async () => {
+  try {
+    await analyzePosition(currentFen.value, {
+      depth: analysisDepth.value,
+      multiPv: analysisLines.value,
+    })
+  } catch {
+    // Error state is already surfaced by the composable.
+  }
+}
+
+onMounted(() => {
+  start().catch(() => {
+    // Error state is already surfaced by the composable.
+  })
+})
+
+onBeforeUnmount(() => {
+  destroy()
+})
 </script>
 
 <template>
@@ -35,8 +66,10 @@ const handlePgnImportStatus = (payload: { ok: boolean; message: string }) => {
         <h1>Analyze games with Stockfish + Chat</h1>
       </div>
       <div class="header-actions">
-        <button type="button" class="ghost" @click="importPgn">Import PGN</button>
-        <button type="button" class="primary">Run Analysis</button>
+        <button type="button" class="ghost" @click="requestPgnImport">Import PGN</button>
+        <button type="button" class="primary" :disabled="isAnalyzing" @click="runAnalysis">
+          {{ isAnalyzing ? 'Analyzing...' : 'Run Analysis' }}
+        </button>
       </div>
     </header>
 
@@ -48,7 +81,7 @@ const handlePgnImportStatus = (payload: { ok: boolean; message: string }) => {
         placeholder='Paste PGN here (example: 1. e4 e5 2. Nf3 Nc6 3. Bb5 a6)'
       />
       <div class="importer-actions">
-        <button type="button" class="primary" @click="importPgn">Load PGN</button>
+        <button type="button" class="primary" @click="requestPgnImport">Load PGN</button>
         <p
           v-if="pgnImportStatus"
           :class="['import-status', pgnImportStatus.ok ? 'success' : 'error']"
@@ -64,6 +97,7 @@ const handlePgnImportStatus = (payload: { ok: boolean; message: string }) => {
           :import-pgn="pgnImportRequest"
           @moves-updated="handleMovesUpdated"
           @pgn-import-status="handlePgnImportStatus"
+          @position-updated="handlePositionUpdated"
         />
       </section>
       <section class="sidebar-area">
@@ -71,7 +105,14 @@ const handlePgnImportStatus = (payload: { ok: boolean; message: string }) => {
       </section>
 
       <section class="analysis-area">
-        <AnalysisPanel />
+        <AnalysisPanel
+          v-model:depth="analysisDepth"
+          v-model:multi-pv="analysisLines"
+          :ready="isReady"
+          :loading="isAnalyzing"
+          :error="lastError"
+          :evaluation="evaluation"
+        />
       </section>
       <section class="moves-area">
         <MoveList :moves="moves" />
@@ -138,6 +179,11 @@ h1 {
 
 .header-actions .ghost {
   background: transparent;
+}
+
+.header-actions button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .layout {

@@ -1,21 +1,227 @@
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
+import { Chess } from 'chess.js'
+import type { EngineEvaluation, MoveEvaluation } from '@/types/chess'
+import stockfishWorkerUrl from 'stockfish/bin/stockfish-18-lite-single.js?url'
+import stockfishWasmUrl from 'stockfish/bin/stockfish-18-lite-single.wasm?url'
 
-// Minimal placeholder for Stockfish WASM integration; swap with real worker wiring later.
+interface AnalyzeOptions {
+  depth?: number
+  multiPv?: number
+}
+
+interface PendingAnalysis {
+  resolve: (value: EngineEvaluation) => void
+  reject: (reason?: unknown) => void
+}
+
+const START_FEN = 'startpos'
+const INITIAL_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'
+
 export function useStockfish() {
   const isReady = ref(false)
-  const bestLines = ref<string[]>([])
-  const evaluation = ref<number | null>(null) // centipawns
+  const isAnalyzing = ref(false)
+  const lastError = ref<string | null>(null)
+  const bestLines = ref<MoveEvaluation[]>([])
+  const evaluation = ref<EngineEvaluation | null>(null)
 
-  const start = () => {
-    isReady.value = true
+  let worker: Worker | null = null
+  let readyPromise: Promise<void> | null = null
+  let readyResolver: (() => void) | null = null
+  let pending: PendingAnalysis | null = null
+  let lastRequestedDepth = 12
+  let currentAnalysisFen = INITIAL_FEN
+
+  const post = (command: string) => {
+    if (!worker) return
+    worker.postMessage(command)
   }
 
-  const analyzePosition = async (_fen: string) => {
-    if (!isReady.value) start()
-    // Stub: populate with mock data until engine is connected.
-    bestLines.value = ['e4 e5', 'd4 d5']
-    evaluation.value = 20
+  const resetAnalysis = () => {
+    bestLines.value = []
+    evaluation.value = null
   }
 
-  return { isReady, bestLines, evaluation, start, analyzePosition }
+  const parseUciMove = (move: string) => {
+    if (!/^[a-h][1-8][a-h][1-8][qrbn]?$/.test(move)) return null
+    return {
+      from: move.slice(0, 2),
+      to: move.slice(2, 4),
+      promotion: move[4] as 'q' | 'r' | 'b' | 'n' | undefined,
+    }
+  }
+
+  const uciLineToSan = (fen: string, line: string[]) => {
+    const replay = new Chess(fen)
+    const sanLine: string[] = []
+
+    for (const uciMove of line) {
+      const parsed = parseUciMove(uciMove)
+      if (!parsed) break
+
+      const played = replay.move(parsed)
+      if (!played) break
+      sanLine.push(played.san)
+    }
+
+    return sanLine
+  }
+
+  const parseInfoLine = (line: string) => {
+    if (!line.startsWith('info ')) return
+
+    const depthMatch = line.match(/\bdepth (\d+)/)
+    const pvMatch = line.match(/\bpv (.+)$/)
+    const multipvMatch = line.match(/\bmultipv (\d+)/)
+    const cpMatch = line.match(/\bscore cp (-?\d+)/)
+    const mateMatch = line.match(/\bscore mate (-?\d+)/)
+
+    if (!pvMatch || (!cpMatch && !mateMatch)) return
+
+    const depth = depthMatch ? Number(depthMatch[1]) : lastRequestedDepth
+    const multipv = multipvMatch ? Number(multipvMatch[1]) : 1
+    const pv = pvMatch[1]
+    if (!pv) return
+    const pvMoves = pv.trim().split(/\s+/)
+    const sanLine = uciLineToSan(currentAnalysisFen, pvMoves)
+    const leadingMove = sanLine[0] ?? pvMoves[0] ?? ''
+
+    const lineEval: MoveEvaluation = {
+      san: leadingMove,
+      score: cpMatch ? Number(cpMatch[1]) : Number(mateMatch?.[1] ?? 0),
+      line: sanLine.length ? sanLine : pvMoves,
+      isMate: Boolean(mateMatch),
+    }
+
+    const nextLines = [...bestLines.value]
+    const lineIndex = Math.max(multipv - 1, 0)
+    nextLines[lineIndex] = lineEval
+    bestLines.value = nextLines.filter((entry) => Boolean(entry))
+
+    const principal = bestLines.value[0] ?? null
+    evaluation.value = {
+      centipawns: principal && !principal.isMate ? principal.score : null,
+      mateIn: principal && principal.isMate ? principal.score : null,
+      depth,
+      bestMoves: bestLines.value,
+    }
+  }
+
+  const handleWorkerMessage = (event: MessageEvent<string>) => {
+    const line = String(event.data ?? '').trim()
+    if (!line) return
+
+    if (line === 'uciok') {
+      isReady.value = true
+      readyResolver?.()
+      readyResolver = null
+      return
+    }
+
+    parseInfoLine(line)
+
+    if (line.startsWith('bestmove')) {
+      isAnalyzing.value = false
+      if (pending && evaluation.value) {
+        pending.resolve(evaluation.value)
+      } else if (pending) {
+        pending.reject(new Error('Stockfish returned no evaluation.'))
+      }
+      pending = null
+    }
+  }
+
+  const handleWorkerError = () => {
+    isAnalyzing.value = false
+    isReady.value = false
+    lastError.value = 'Stockfish worker crashed.'
+    pending?.reject(new Error(lastError.value))
+    pending = null
+  }
+
+  const ensureWorker = async () => {
+    if (worker && isReady.value) return
+    if (!worker) {
+      const workerSource = `${stockfishWorkerUrl}#${encodeURIComponent(stockfishWasmUrl)}`
+      worker = new Worker(workerSource)
+      worker.addEventListener('message', handleWorkerMessage as EventListener)
+      worker.addEventListener('error', handleWorkerError)
+      readyPromise = new Promise<void>((resolve) => {
+        readyResolver = resolve
+      })
+      post('uci')
+      post('isready')
+    }
+
+    if (!readyPromise) return
+    await readyPromise
+  }
+
+  const start = async () => {
+    lastError.value = null
+    await ensureWorker()
+  }
+
+  const analyzePosition = async (fen: string, options: AnalyzeOptions = {}) => {
+    await start()
+    resetAnalysis()
+    isAnalyzing.value = true
+
+    lastRequestedDepth = options.depth ?? 12
+    const multiPv = options.multiPv ?? 3
+
+    if (pending) {
+      pending.reject(new Error('Analysis replaced by a newer request.'))
+      pending = null
+    }
+
+    const position = fen.trim() ? `fen ${fen}` : START_FEN
+    currentAnalysisFen = fen.trim() || INITIAL_FEN
+    post('stop')
+    post('ucinewgame')
+    post(`position ${position}`)
+    post(`setoption name MultiPV value ${multiPv}`)
+    post(`go depth ${lastRequestedDepth}`)
+
+    return new Promise<EngineEvaluation>((resolve, reject) => {
+      pending = { resolve, reject }
+    })
+  }
+
+  const stop = () => {
+    if (!worker) return
+    post('stop')
+    isAnalyzing.value = false
+  }
+
+  const destroy = () => {
+    if (!worker) return
+    stop()
+    post('quit')
+    worker.terminate()
+    worker = null
+    readyPromise = null
+    readyResolver = null
+    isReady.value = false
+    pending = null
+  }
+
+  const summary = computed(() => ({
+    ready: isReady.value,
+    analyzing: isAnalyzing.value,
+    error: lastError.value,
+    evaluation: evaluation.value,
+  }))
+
+  return {
+    isReady,
+    isAnalyzing,
+    lastError,
+    bestLines,
+    evaluation,
+    summary,
+    start,
+    stop,
+    destroy,
+    analyzePosition,
+  }
 }

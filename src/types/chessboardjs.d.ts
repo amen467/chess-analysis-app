@@ -16,5 +16,3 @@ declare module '@chrisoakman/chessboardjs' {
     config: BoardConfig | string,
   ): BoardInstance
 }
-
-declare module '@chrisoakman/chessboardjs/dist/chessboard-1.0.0.js'
