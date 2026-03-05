@@ -99,7 +99,7 @@ h1 {
 
 .layout {
   display: grid;
-  grid-template-columns: 2fr 1fr;
+  grid-template-columns: 1fr;
   grid-template-rows: auto auto auto;
   gap: 1rem;
 }

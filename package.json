@@ -16,6 +16,9 @@
     "format": "prettier --write --experimental-cli src/"
   },
   "dependencies": {
+    "@chrisoakman/chessboardjs": "^1.0.0",
+    "chess.js": "^1.4.0",
+    "jquery": "^3.7.1",
     "pinia": "^3.0.4",
     "vue": "^3.5.29",
     "vue-router": "^5.0.3"
