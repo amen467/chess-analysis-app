@@ -121,6 +121,34 @@ const onKeyDown = (event: KeyboardEvent) => {
   }
 }
 
+const goToStart = () => {
+  if (currentPly.value === 0) return
+  currentPly.value = 0
+  syncBoardToCursor()
+  emitPosition()
+}
+
+const goBack = () => {
+  if (currentPly.value === 0) return
+  currentPly.value -= 1
+  syncBoardToCursor()
+  emitPosition()
+}
+
+const goForward = () => {
+  if (currentPly.value >= playedMoves.value.length) return
+  currentPly.value += 1
+  syncBoardToCursor()
+  emitPosition()
+}
+
+const goToEnd = () => {
+  if (currentPly.value >= playedMoves.value.length) return
+  currentPly.value = playedMoves.value.length
+  syncBoardToCursor()
+  emitPosition()
+}
+
 onMounted(async () => {
   if (!boardEl.value) return
   emit('moves-updated', [])
@@ -216,6 +244,16 @@ onBeforeUnmount(() => {
 <template>
   <section class="chess-board">
     <div ref="boardEl" class="board-root"></div>
+    <div class="board-nav" aria-label="Move navigation">
+      <button type="button" :disabled="currentPly === 0" @click="goToStart">&lt;&lt;</button>
+      <button type="button" :disabled="currentPly === 0" @click="goBack">&lt;</button>
+      <button type="button" :disabled="currentPly >= playedMoves.length" @click="goForward">
+        &gt;
+      </button>
+      <button type="button" :disabled="currentPly >= playedMoves.length" @click="goToEnd">
+        &gt;&gt;
+      </button>
+    </div>
   </section>
 </template>
 
@@ -224,6 +262,7 @@ onBeforeUnmount(() => {
   display: grid;
   place-items: center;
   width: 100%;
+  gap: 0.75rem;
   padding: 1rem;
   // border: 1px solid #d0d0d0;
   border-radius: 12px;
@@ -231,6 +270,30 @@ onBeforeUnmount(() => {
 }
 
 .board-root {
-  width: min(100%, 640px);
+  width: 100%;
+}
+
+.board-nav {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  gap: 1.5rem;
+}
+
+.board-nav button {
+  min-width: 6.5rem;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #0f172a;
+  font-weight: 700;
+  cursor: pointer;
+  font-size: 26px;
+}
+
+.board-nav button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 </style>

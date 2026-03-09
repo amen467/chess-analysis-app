@@ -51,28 +51,30 @@ const onMultiPvInput = (event: Event) => {
         <input type="number" min="1" max="40" :value="multiPv" @input="onMultiPvInput" />
       </label>
     </div>
-    <p v-if="!ready" class="hint">Engine is not ready yet.</p>
-    <p v-else-if="loading" class="hint">Analyzing current position...</p>
-    <p v-else-if="error" class="error">{{ error }}</p>
-    <p v-else-if="!evaluation" class="hint">Run analysis to see principal variations.</p>
-    <template v-else>
-      <p class="summary">
-        Depth {{ evaluation.depth }} |
-        <span v-if="evaluation.mateIn !== null">Mate {{ evaluation.mateIn }}</span>
-        <span v-else-if="evaluation.centipawns !== null">
-          Eval {{ formatPawns(evaluation.centipawns) }}
-        </span>
-        <span v-else>Eval --</span>
-      </p>
-      <ol class="pv-list">
-        <li v-for="(line, index) in evaluation.bestMoves" :key="index">
-          <strong>#{{ index + 1 }}</strong>
-          <span v-if="line.isMate">Mate {{ line.score }}</span>
-          <span v-else>{{ formatPawns(line.score) }}</span>
-          <code>{{ line.line.join(' ') }}</code>
-        </li>
-      </ol>
-    </template>
+    <div class="analysis-body">
+      <p v-if="!ready" class="hint">Engine is not ready yet.</p>
+      <p v-else-if="loading" class="hint">Analyzing current position...</p>
+      <p v-else-if="error" class="error">{{ error }}</p>
+      <p v-else-if="!evaluation" class="hint">Run analysis to see principal variations.</p>
+      <template v-else>
+        <p class="summary">
+          Depth {{ evaluation.depth }} |
+          <span v-if="evaluation.mateIn !== null">Mate {{ evaluation.mateIn }}</span>
+          <span v-else-if="evaluation.centipawns !== null">
+            Eval {{ formatPawns(evaluation.centipawns) }}
+          </span>
+          <span v-else>Eval --</span>
+        </p>
+        <ol class="pv-list">
+          <li v-for="(line, index) in evaluation.bestMoves" :key="index">
+            <strong>#{{ index + 1 }}</strong>
+            <span v-if="line.isMate">Mate {{ line.score }}</span>
+            <span v-else>{{ formatPawns(line.score) }}</span>
+            <code>{{ line.line.join(' ') }}</code>
+          </li>
+        </ol>
+      </template>
+    </div>
   </section>
 </template>
 
@@ -87,7 +89,7 @@ const onMultiPvInput = (event: Event) => {
 
 .analysis-header {
   display: flex;
-  align-items: center;
+  align-items: end;
   gap: 0.75rem;
   flex-wrap: wrap;
 }
@@ -96,12 +98,20 @@ const onMultiPvInput = (event: Event) => {
   margin: 0;
 }
 
+.analysis-body {
+  background: rgba(255, 255, 255, 0.04);
+  height: 91.4%;
+  border-radius: 8px;
+  padding: 0.5rem 0.9rem;
+  margin-top: 1rem;
+}
+
 .control {
   display: flex;
   align-items: center;
   gap: 0.4rem;
   font-size: 0.85rem;
-  color: #334155;
+  color: #f8fafc;
 }
 
 .control input {
@@ -112,7 +122,7 @@ const onMultiPvInput = (event: Event) => {
 }
 
 .hint {
-  color: #64748b;
+  color: #f8fafc;
   margin: 0.5rem 0 0;
 }
 

@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import ChessBoard from '@/components/ChessBoard.vue'
-import SideBar from '@/components/SideBar.vue'
 import AnalysisPanel from '@/components/AnalysisPanel.vue'
 import ChatWindow from '@/components/ChatWindow.vue'
 import MoveList from '@/components/MoveList.vue'
@@ -15,7 +14,8 @@ const currentFen = ref('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1
 const analysisDepth = ref(14)
 const analysisLines = ref(3)
 
-const { isReady, isAnalyzing, evaluation, lastError, start, destroy, analyzePosition } = useStockfish()
+const { isReady, isAnalyzing, evaluation, lastError, start, destroy, analyzePosition } =
+  useStockfish()
 
 const handleMovesUpdated = (nextMoves: string[]) => {
   moves.value = nextMoves
@@ -65,12 +65,6 @@ onBeforeUnmount(() => {
         <p class="eyebrow">Chess Analysis App</p>
         <h1>Analyze games with Stockfish + Chat</h1>
       </div>
-      <div class="header-actions">
-        <button type="button" class="ghost" @click="requestPgnImport">Import PGN</button>
-        <button type="button" class="primary" :disabled="isAnalyzing" @click="runAnalysis">
-          {{ isAnalyzing ? 'Analyzing...' : 'Run Analysis' }}
-        </button>
-      </div>
     </header>
 
     <section class="importer">
@@ -78,16 +72,13 @@ onBeforeUnmount(() => {
       <textarea
         id="pgn-input"
         v-model="pgnInput"
-        placeholder='Paste PGN here (example: 1. e4 e5 2. Nf3 Nc6 3. Bb5 a6)'
+        placeholder="Paste PGN here (example: 1. e4 e5 2. Nf3 Nc6 3. Bb5 a6)"
       />
-      <div class="importer-actions">
-        <button type="button" class="primary" @click="requestPgnImport">Load PGN</button>
-        <p
-          v-if="pgnImportStatus"
-          :class="['import-status', pgnImportStatus.ok ? 'success' : 'error']"
-        >
-          {{ pgnImportStatus.message }}
-        </p>
+      <div class="header-actions">
+        <button type="button" class="ghost" @click="requestPgnImport">Import PGN</button>
+        <button type="button" class="primary" :disabled="isAnalyzing" @click="runAnalysis">
+          {{ isAnalyzing ? 'Analyzing...' : 'Run Analysis' }}
+        </button>
       </div>
     </section>
 
@@ -100,25 +91,24 @@ onBeforeUnmount(() => {
           @position-updated="handlePositionUpdated"
         />
       </section>
-      <section class="sidebar-area">
-        <SideBar />
-      </section>
-
-      <section class="analysis-area">
-        <AnalysisPanel
-          v-model:depth="analysisDepth"
-          v-model:multi-pv="analysisLines"
-          :ready="isReady"
-          :loading="isAnalyzing"
-          :error="lastError"
-          :evaluation="evaluation"
-        />
-      </section>
       <section class="moves-area">
         <MoveList :moves="moves" />
       </section>
-      <section class="chat-area">
-        <ChatWindow />
+
+      <section class="sidebar-area">
+        <section class="analysis-area">
+          <AnalysisPanel
+            v-model:depth="analysisDepth"
+            v-model:multi-pv="analysisLines"
+            :ready="isReady"
+            :loading="isAnalyzing"
+            :error="lastError"
+            :evaluation="evaluation"
+          />
+        </section>
+        <section class="chat-area">
+          <ChatWindow />
+        </section>
       </section>
     </main>
   </div>
@@ -127,7 +117,7 @@ onBeforeUnmount(() => {
 <style lang="scss">
 .app-shell {
   min-height: 100vh;
-  max-width: 1200px;
+  max-width: 1440px;
   margin: 0 auto;
   padding: 2rem 1.5rem 3rem;
   display: grid;
@@ -241,20 +231,74 @@ h1 {
 }
 
 .sidebar-area {
-  grid-column: 2;
-  grid-row: 1 / span 2;
+  grid-column: 1;
+  grid-row: auto;
+  display: grid;
+  gap: 1rem;
 }
 
 .analysis-area {
   grid-column: 1;
+  min-height: 0;
+  overflow: auto;
 }
 
 .moves-area {
   grid-column: 1;
+  padding: 0 1rem;
 }
 
 .chat-area {
-  grid-column: 2;
+  grid-column: 1;
+  max-height: 400px;
+  overflow: auto;
+}
+
+.analysis-area .analysis-panel {
+  height: 100%;
+  background: #0b1021;
+  color: #f8fafc;
+}
+
+.chat-area .chat-window {
+  height: 100%;
+}
+
+@media (min-width: 961px) {
+  .layout {
+    grid-template-columns: 2fr 1fr;
+  }
+
+  .board-area {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .sidebar-area {
+    grid-column: 2;
+    grid-row: 1;
+    grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+    align-self: stretch;
+    min-height: 0;
+  }
+
+  .analysis-area {
+    max-height: 450px;
+  }
+
+  .analysis-area .analysis-panel {
+    max-height: none;
+  }
+
+  .chat-area {
+    max-height: 437px;
+    min-height: 0;
+  }
+
+  .moves-area {
+    grid-column: 1 / span 2;
+    padding-right: 0rem;
+  }
 }
 
 @media (max-width: 960px) {
