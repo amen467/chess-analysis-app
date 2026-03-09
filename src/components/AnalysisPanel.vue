@@ -13,6 +13,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   'update:depth': [value: number]
   'update:multiPv': [value: number]
+  'run-analysis': []
 }>()
 
 const formatPawns = (centipawns: number) => {
@@ -50,6 +51,9 @@ const onMultiPvInput = (event: Event) => {
         Lines
         <input type="number" min="1" max="40" :value="multiPv" @input="onMultiPvInput" />
       </label>
+      <button type="button" class="analyze-btn" :disabled="loading" @click="emit('run-analysis')">
+        {{ loading ? 'Analyzing...' : 'Run Analysis' }}
+      </button>
     </div>
     <div class="analysis-body">
       <p v-if="!ready" class="hint">Engine is not ready yet.</p>
@@ -104,6 +108,8 @@ const onMultiPvInput = (event: Event) => {
   border-radius: 8px;
   padding: 0.5rem 0.9rem;
   margin-top: 1rem;
+  max-height: 450px;
+  overflow: auto;
 }
 
 .control {
@@ -119,6 +125,21 @@ const onMultiPvInput = (event: Event) => {
   border: 1px solid #cbd5e1;
   border-radius: 8px;
   padding: 0.25rem 0.4rem;
+}
+
+.analyze-btn {
+  border-radius: 10px;
+  padding: 0.55rem 0.85rem;
+  font-weight: 700;
+  border: none;
+  background: linear-gradient(135deg, #22d3ee, #3b82f6);
+  color: #0b1021;
+  cursor: pointer;
+}
+
+.analyze-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .hint {
@@ -140,7 +161,8 @@ const onMultiPvInput = (event: Event) => {
   margin: 0;
   padding-left: 1rem;
   display: grid;
-  gap: 0.5rem;
+  gap: 1.5rem;
+  font-size: 18px;
 }
 
 .pv-list li {
@@ -150,6 +172,6 @@ const onMultiPvInput = (event: Event) => {
 
 .pv-list code {
   font-size: 0.85rem;
-  color: #0f172a;
+  color: #f8fafc;
 }
 </style>

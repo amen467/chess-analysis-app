@@ -76,9 +76,6 @@ onBeforeUnmount(() => {
       />
       <div class="header-actions">
         <button type="button" class="ghost" @click="requestPgnImport">Import PGN</button>
-        <button type="button" class="primary" :disabled="isAnalyzing" @click="runAnalysis">
-          {{ isAnalyzing ? 'Analyzing...' : 'Run Analysis' }}
-        </button>
       </div>
     </section>
 
@@ -104,10 +101,11 @@ onBeforeUnmount(() => {
             :loading="isAnalyzing"
             :error="lastError"
             :evaluation="evaluation"
+            @run-analysis="runAnalysis"
           />
         </section>
         <section class="chat-area">
-          <ChatWindow />
+          <ChatWindow :current-fen="currentFen" />
         </section>
       </section>
     </main>
@@ -237,15 +235,21 @@ h1 {
   gap: 1rem;
 }
 
+.moves-area,
+.chat-area,
+.analysis-area {
+  padding: 0 1rem;
+}
+
 .analysis-area {
   grid-column: 1;
   min-height: 0;
-  overflow: auto;
+  // overflow: auto;
 }
 
 .moves-area {
   grid-column: 1;
-  padding: 0 1rem;
+  // padding: 0 1rem;
 }
 
 .chat-area {
@@ -283,7 +287,7 @@ h1 {
   }
 
   .analysis-area {
-    max-height: 450px;
+    // max-height: 450px;
   }
 
   .analysis-area .analysis-panel {
@@ -291,13 +295,19 @@ h1 {
   }
 
   .chat-area {
-    max-height: 437px;
+    max-height: 408px;
     min-height: 0;
   }
 
   .moves-area {
     grid-column: 1 / span 2;
     padding-right: 0rem;
+  }
+
+  .moves-area,
+  .chat-area,
+  .analysis-area {
+    padding: 0rem;
   }
 }
 

@@ -3,13 +3,29 @@ import { computed } from 'vue'
 
 const props = defineProps<{ moves?: string[] }>()
 const moves = computed(() => props.moves ?? [])
+const fullMoves = computed(() => {
+  const grouped: Array<{ number: number; white: string; black?: string }> = []
+  for (let i = 0; i < moves.value.length; i += 2) {
+    const white = moves.value[i]
+    if (!white) continue
+    grouped.push({
+      number: i / 2 + 1,
+      white,
+      black: moves.value[i + 1],
+    })
+  }
+  return grouped
+})
 </script>
 
 <template>
   <section class="move-list">
     <header>Moves</header>
     <ol>
-      <li v-for="(move, index) in moves" :key="index">{{ index + 1 }}. {{ move }}</li>
+      <li v-for="move in fullMoves" :key="move.number">
+        {{ move.number }}. {{ move.white }}
+        <span v-if="move.black"> {{ move.black }}</span>
+      </li>
     </ol>
     <p v-if="!moves.length" class="empty">No moves yet.</p>
   </section>
