@@ -21,6 +21,7 @@ interface PgnImportStatus {
 const INITIAL_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'
 
 export const useGameStore = defineStore('game', () => {
+  const engineEnabled = ref(false)
   const moves = ref<string[]>([])
   const pgnInput = ref('')
   const pgnImportRequest = ref<PgnImportRequest>()
@@ -65,6 +66,9 @@ export const useGameStore = defineStore('game', () => {
 
   const setCurrentFen = (fen: string) => {
     currentFen.value = fen
+    if (engineEnabled.value) {
+      void runAnalysis()
+    }
   }
 
   const setCurrentPgn = (pgn: string) => {
@@ -86,6 +90,7 @@ export const useGameStore = defineStore('game', () => {
   }
 
   const runAnalysis = async () => {
+    if (!engineEnabled.value) return
     try {
       await analyzePosition(currentFen.value, {
         depth: analysisDepth.value,
@@ -102,6 +107,25 @@ export const useGameStore = defineStore('game', () => {
 
   const teardownEngine = () => {
     destroy()
+  }
+
+  const setEngineEnabled = async (enabled: boolean) => {
+    if (enabled === engineEnabled.value) return
+
+    if (!enabled) {
+      engineEnabled.value = false
+      teardownEngine()
+      return
+    }
+
+    engineEnabled.value = true
+    try {
+      await initializeEngine()
+      await runAnalysis()
+    } catch {
+      engineEnabled.value = false
+      teardownEngine()
+    }
   }
 
   const loadChatState = async () => {
@@ -133,6 +157,7 @@ export const useGameStore = defineStore('game', () => {
   }
 
   return {
+    engineEnabled,
     moves,
     pgnInput,
     pgnImportRequest,
@@ -157,6 +182,7 @@ export const useGameStore = defineStore('game', () => {
     setCurrentPgn,
     requestPgnImport,
     requestJumpToPly,
+    setEngineEnabled,
     runAnalysis,
     initializeEngine,
     teardownEngine,

@@ -2,6 +2,7 @@
 import type { EngineEvaluation } from '@/types/chess'
 
 const props = defineProps<{
+  enabled: boolean
   ready: boolean
   loading: boolean
   depth: number
@@ -12,9 +13,9 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
+  'update:enabled': [value: boolean]
   'update:depth': [value: number]
   'update:multiPv': [value: number]
-  'run-analysis': []
 }>()
 
 const formatPawns = (centipawns: number) => {
@@ -37,6 +38,11 @@ const onDepthInput = (event: Event) => {
 const onMultiPvInput = (event: Event) => {
   const target = event.target as HTMLInputElement
   emit('update:multiPv', toSafeInt(target.value, props.multiPv, 1, 40))
+}
+
+const onEnabledChange = (event: Event) => {
+  const target = event.target as HTMLInputElement
+  emit('update:enabled', target.checked)
 }
 
 const MAX_PV_PLIES_DISPLAY = 13
@@ -76,6 +82,10 @@ const formatPvLine = (line: string[], fen: string) => {
   <section class="analysis-panel">
     <div class="analysis-header">
       <h2>Analysis</h2>
+      <label class="toggle">
+        <input type="checkbox" :checked="enabled" @change="onEnabledChange" />
+        <span>Engine {{ enabled ? 'On' : 'Off' }}</span>
+      </label>
       <label class="control">
         Depth
         <input type="number" min="1" max="30" :value="depth" @input="onDepthInput" />
@@ -84,15 +94,13 @@ const formatPvLine = (line: string[], fen: string) => {
         Lines
         <input type="number" min="1" max="40" :value="multiPv" @input="onMultiPvInput" />
       </label>
-      <button type="button" class="analyze-btn" :disabled="loading" @click="emit('run-analysis')">
-        {{ loading ? 'Analyzing...' : 'Run Analysis' }}
-      </button>
     </div>
     <div class="analysis-body">
-      <p v-if="!ready" class="hint">Engine is not ready yet.</p>
+      <p v-if="!enabled" class="hint">Engine is off.</p>
+      <p v-else-if="!ready" class="hint">Starting engine...</p>
       <p v-else-if="loading" class="hint">Analyzing current position...</p>
       <p v-else-if="error" class="error">{{ error }}</p>
-      <p v-else-if="!evaluation" class="hint">Run analysis to see principal variations.</p>
+      <p v-else-if="!evaluation" class="hint">Waiting for position analysis...</p>
       <template v-else>
         <p class="summary">
           Depth {{ evaluation.depth }} |
@@ -144,6 +152,18 @@ const formatPvLine = (line: string[], fen: string) => {
   margin: 0;
 }
 
+.toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  color: #f8fafc;
+}
+
+.toggle input {
+  accent-color: #22d3ee;
+}
+
 .analysis-body {
   background: rgba(255, 255, 255, 0.04);
   border-radius: 8px;
@@ -165,21 +185,6 @@ const formatPvLine = (line: string[], fen: string) => {
   border: 1px solid #cbd5e1;
   border-radius: 8px;
   padding: 0.25rem 0.4rem;
-}
-
-.analyze-btn {
-  border-radius: 10px;
-  padding: 0.55rem 0.85rem;
-  font-weight: 700;
-  border: none;
-  background: linear-gradient(135deg, #22d3ee, #3b82f6);
-  color: #0b1021;
-  cursor: pointer;
-}
-
-.analyze-btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
 }
 
 .hint {

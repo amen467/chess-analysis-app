@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted } from 'vue'
+import { onBeforeUnmount } from 'vue'
 import { storeToRefs } from 'pinia'
 import ChessBoard from '@/components/ChessBoard.vue'
 import AnalysisPanel from '@/components/AnalysisPanel.vue'
@@ -9,6 +9,7 @@ import { useGameStore } from '@/store/gameStore'
 
 const gameStore = useGameStore()
 const {
+  engineEnabled,
   moves,
   pgnInput,
   pgnImportRequest,
@@ -21,12 +22,6 @@ const {
   evaluation,
   analysisError,
 } = storeToRefs(gameStore)
-
-onMounted(() => {
-  gameStore.initializeEngine().catch(() => {
-    // Error state is already surfaced by the composable.
-  })
-})
 
 onBeforeUnmount(() => {
   gameStore.teardownEngine()
@@ -72,6 +67,7 @@ onBeforeUnmount(() => {
       <section class="sidebar-area">
         <section class="analysis-area">
           <AnalysisPanel
+            :enabled="engineEnabled"
             v-model:depth="analysisDepth"
             v-model:multi-pv="analysisLines"
             :ready="isReady"
@@ -79,7 +75,7 @@ onBeforeUnmount(() => {
             :current-fen="currentFen"
             :error="analysisError"
             :evaluation="evaluation"
-            @run-analysis="gameStore.runAnalysis"
+            @update:enabled="gameStore.setEngineEnabled"
           />
         </section>
         <section class="chat-area">

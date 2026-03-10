@@ -137,7 +137,6 @@ Assets:
 ### Phase A - Consolidate Core State
 
 - Remove or repurpose legacy scaffolding (template store/test files)
-- Keep current UX unchanged while reducing state duplication
 
 ### Phase B - Game-Wide Analysis
 
@@ -164,5 +163,4 @@ The next milestone is complete when:
 - Whole-game analysis runs from imported PGN without manual per-position reruns
 - Each move has stored engine delta/CPL and classification
 - A visible white/black performance summary is shown
-- Chat can reference engine output for the selected position
 - Test suite covers core composables and key UI flows
