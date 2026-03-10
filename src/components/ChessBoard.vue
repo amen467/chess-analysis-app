@@ -207,6 +207,7 @@ const onKeyDown = (event: KeyboardEvent) => {
     currentPly.value -= 1
     syncBoardToCursor()
     emitPosition()
+    emitPgn()
     return
   }
 
@@ -216,6 +217,7 @@ const onKeyDown = (event: KeyboardEvent) => {
     currentPly.value += 1
     syncBoardToCursor()
     emitPosition()
+    emitPgn()
   }
 }
 
@@ -224,6 +226,7 @@ const goToStart = () => {
   currentPly.value = 0
   syncBoardToCursor()
   emitPosition()
+  emitPgn()
 }
 
 const goBack = () => {
@@ -231,6 +234,7 @@ const goBack = () => {
   currentPly.value -= 1
   syncBoardToCursor()
   emitPosition()
+  emitPgn()
 }
 
 const goForward = () => {
@@ -238,6 +242,7 @@ const goForward = () => {
   currentPly.value += 1
   syncBoardToCursor()
   emitPosition()
+  emitPgn()
 }
 
 const goToEnd = () => {
@@ -245,6 +250,7 @@ const goToEnd = () => {
   currentPly.value = playedMoves.value.length
   syncBoardToCursor()
   emitPosition()
+  emitPgn()
 }
 
 onMounted(async () => {
