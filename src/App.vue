@@ -1,73 +1,35 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { onBeforeUnmount, onMounted } from 'vue'
+import { storeToRefs } from 'pinia'
 import ChessBoard from '@/components/ChessBoard.vue'
 import AnalysisPanel from '@/components/AnalysisPanel.vue'
 import ChatWindow from '@/components/ChatWindow.vue'
 import MoveList from '@/components/MoveList.vue'
-import { useStockfish } from '@/composables/useStockfish'
+import { useGameStore } from '@/store/gameStore'
 
-const moves = ref<string[]>([])
-const pgnInput = ref('')
-const pgnImportRequest = ref<{ id: number; text: string }>()
-const jumpToPlyRequest = ref<{ id: number; ply: number }>()
-const pgnImportStatus = ref<{ ok: boolean; message: string }>()
-const currentFen = ref('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1')
-const currentPgn = ref('')
-const analysisDepth = ref(22)
-const analysisLines = ref(5)
-
-const { isReady, isAnalyzing, evaluation, lastError, start, destroy, analyzePosition } =
-  useStockfish()
-
-const handleMovesUpdated = (nextMoves: string[]) => {
-  moves.value = nextMoves
-}
-
-const requestPgnImport = () => {
-  pgnImportRequest.value = {
-    id: Date.now(),
-    text: pgnInput.value,
-  }
-}
-
-const handlePgnImportStatus = (payload: { ok: boolean; message: string }) => {
-  pgnImportStatus.value = payload
-}
-
-const handlePositionUpdated = (fen: string) => {
-  currentFen.value = fen
-}
-
-const handlePgnUpdated = (pgn: string) => {
-  currentPgn.value = pgn
-}
-
-const handlePlySelected = (ply: number) => {
-  jumpToPlyRequest.value = {
-    id: Date.now(),
-    ply,
-  }
-}
-
-const runAnalysis = async () => {
-  try {
-    await analyzePosition(currentFen.value, {
-      depth: analysisDepth.value,
-      multiPv: analysisLines.value,
-    })
-  } catch {
-    // Error state is already surfaced by the composable.
-  }
-}
+const gameStore = useGameStore()
+const {
+  moves,
+  pgnInput,
+  pgnImportRequest,
+  jumpToPlyRequest,
+  currentFen,
+  analysisDepth,
+  analysisLines,
+  isReady,
+  isAnalyzing,
+  evaluation,
+  analysisError,
+} = storeToRefs(gameStore)
 
 onMounted(() => {
-  start().catch(() => {
+  gameStore.initializeEngine().catch(() => {
     // Error state is already surfaced by the composable.
   })
 })
 
 onBeforeUnmount(() => {
-  destroy()
+  gameStore.teardownEngine()
 })
 </script>
 
@@ -88,7 +50,7 @@ onBeforeUnmount(() => {
         placeholder="Paste PGN here (example: 1. e4 e5 2. Nf3 Nc6 3. Bb5 a6)"
       />
       <div class="header-actions">
-        <button type="button" class="ghost" @click="requestPgnImport">Import PGN</button>
+        <button type="button" class="ghost" @click="gameStore.requestPgnImport">Import PGN</button>
       </div>
     </section>
 
@@ -97,14 +59,14 @@ onBeforeUnmount(() => {
         <ChessBoard
           :import-pgn="pgnImportRequest"
           :jump-to-ply="jumpToPlyRequest"
-          @moves-updated="handleMovesUpdated"
-          @pgn-import-status="handlePgnImportStatus"
-          @position-updated="handlePositionUpdated"
-          @pgn-updated="handlePgnUpdated"
+          @moves-updated="gameStore.setMoves"
+          @pgn-import-status="gameStore.setPgnImportStatus"
+          @position-updated="gameStore.setCurrentFen"
+          @pgn-updated="gameStore.setCurrentPgn"
         />
       </section>
       <section class="moves-area">
-        <MoveList :moves="moves" @ply-selected="handlePlySelected" />
+        <MoveList :moves="moves" @ply-selected="gameStore.requestJumpToPly" />
       </section>
 
       <section class="sidebar-area">
@@ -115,13 +77,13 @@ onBeforeUnmount(() => {
             :ready="isReady"
             :loading="isAnalyzing"
             :current-fen="currentFen"
-            :error="lastError"
+            :error="analysisError"
             :evaluation="evaluation"
-            @run-analysis="runAnalysis"
+            @run-analysis="gameStore.runAnalysis"
           />
         </section>
         <section class="chat-area">
-          <ChatWindow :current-fen="currentFen" :current-pgn="currentPgn" />
+          <ChatWindow />
         </section>
       </section>
     </main>

@@ -1,316 +1,168 @@
-# ♟️ Chess Analysis App
+# Chess Analysis App
 
----
+Status updated: March 10, 2026
 
 ## 1. Project Overview
 
-The Chess Analysis App is a web-based chess analysis tool that allows users to:
+The app is now a working client-side chess analysis workspace built with Vue 3 + TypeScript.
+Current focus is:
+
+- PGN import and interactive board navigation
+- On-demand Stockfish position analysis (MultiPV)
+- In-app chess chat using OpenAI Responses API
+- Secure local encryption for the user API key
+
+The original vision still includes full-game analysis and player strength estimation, but those parts are not implemented yet.
+
+## 2. Current Feature Status
+
+### 2.1 Implemented
+
+- PGN input and import flow with validation (invalid PGN is rejected)
+- Interactive draggable board using `@chrisoakman/chessboardjs` + `chess.js`
+- Move navigation via:
+- board controls (`<<`, `<`, `>`, `>>`)
+- keyboard arrows (`Left`/`Right`)
+- clickable move list (jump to any ply)
+- Current position and current PGN are emitted upward from the board
+- Stockfish Web Worker integration using `stockfish-18-lite-single` + WASM
+- Analysis controls:
+- depth input (1-30)
+- MultiPV line count input (1-40)
+- manual `Run Analysis` action
+- Analysis output panel:
+- principal evaluation (cp or mate)
+- ranked best lines
+- SAN formatting for PV lines (truncated display for long lines)
+- Chat panel with OpenAI Responses API (`gpt-4.1-mini`)
+- Multi-turn continuation using `previous_response_id`
+- Optional inclusion of current FEN and PGN in chat prompt
+- API key storage hardened with client-side encryption:
+- PBKDF2-SHA256 key derivation
+- AES-GCM encryption
+- encrypted key in `localStorage`
+- passphrase cached only in `sessionStorage`
+
+### 2.2 Partially Implemented or Legacy
+
+- Pinia and Vue Router are initialized in `main.ts`, but app behavior is currently component/composable driven
+- `src/store/gameStore.ts` and `src/composables/useGameState.ts` exist, but are not wired into the active flow
 
-- Paste a FEN or PGN
-- Run Stockfish analysis
-- View estimated player ELO
-- Navigate interactively through moves
-- See ranked best moves for any position
-- Chat with an LLM about the game and current position
+### 2.3 Not Implemented Yet
+
+- ELO estimation, CPL tracking, and blunder/mistake/inaccuracy classification
+- Whole-game batch analysis (analysis currently runs for the current position only)
+- Engine evaluation context in chat payload (chat currently receives user text + optional FEN/PGN only)
+- FEN input UI (current importer is PGN text area only)
+- Production-grade test coverage (existing unit test scaffold is stale)
 
-The goal is to combine:
+## 3. Actual Architecture (Current)
 
-- A strong chess engine (Stockfish)
-- A clean, interactive chess UI
-- AI-powered explanations via ChatGPT
-- A modern Vue + TypeScript architecture
+### 3.1 Frontend Stack
 
----
+- Vue 3 (`<script setup>`, Composition API)
+- TypeScript
+- SCSS
+- Vite build tooling
 
-## 2. Core Features (MVP)
+### 3.2 Board and Game Flow
 
-### 2.1 Chess Board
+- `ChessBoard.vue` owns local game state with `chess.js`
+- Imports PGN into an internal move history (`playedMoves`)
+- Supports cursor/ply navigation and emits:
+- move list
+- FEN at current ply
+- PGN at current ply
 
-- Large, centered interactive board
-- Move navigation (forward/back)
-- Clickable move list
-- Position updates in real time
-- Highlight last move
-- Show legal moves when piece selected
+### 3.3 Engine Flow
 
-### 2.2 Game Input
+- `useStockfish.ts` owns worker lifecycle (`start`, `stop`, `destroy`)
+- Sends UCI commands:
+- `position fen ...`
+- `setoption name MultiPV value ...`
+- `go depth ...`
+- Parses `info` lines and builds ranked move evaluations
+- Converts UCI PVs to SAN using replay on `chess.js`
 
-- Text area for FEN or PGN
-- “Run Analysis” button
-- Validation of input
-- Clear/reset option
+### 3.4 Chat Flow
 
-### 2.3 Engine Analysis (Stockfish)
+- `useChat.ts` handles API key lifecycle, encryption/decryption, and request/response handling
+- Sends system + user inputs to `https://api.openai.com/v1/responses`
+- Extracts assistant text from `output_text`/`output` fields
+- Maintains in-memory transcript and displays errors in UI
 
-- WebAssembly Stockfish integration
-- Depth-based evaluation
-- MultiPV (multiple best lines)
-- Ranked move suggestions
-- Evaluation score (centipawns / mate)
+## 4. Current Repository Shape
 
-Estimated player ELO calculation based on:
+Implemented core files in active flow:
 
-- Move accuracy
-- Centipawn loss
-- Blunder frequency
+- `src/App.vue`
+- `src/components/ChessBoard.vue`
+- `src/components/MoveList.vue`
+- `src/components/AnalysisPanel.vue`
+- `src/components/ChatWindow.vue`
+- `src/composables/useStockfish.ts`
+- `src/composables/useChat.ts`
+- `src/types/chess.ts`
 
-### 2.4 Sidebar (Right Panel)
+Supporting or legacy scaffold currently present:
 
-Displays:
+- `src/composables/useGameState.ts` (not wired)
+- `src/store/gameStore.ts` (not wired)
+- `src/router/index.ts` (no routes yet)
 
-- Player ELO (White / Black)
-- Current position evaluation
-- Best move ranking list
-- Engine principal variations
+Assets:
 
-### 2.5 AI Chat (Bottom Panel)
+- `public/vendor/chessboardjs-themes.js` (optional board/piece theme globals loaded at runtime)
 
-- Chat interface UI
-- User-provided OpenAI API key
+## 5. Security and Privacy Model (Current)
 
-Context includes:
+- No backend key storage; OpenAI key stays client-side
+- Key is encrypted before persisting with passphrase-derived key
+- Decrypted key only held in memory
+- Stockfish runs in a browser worker to isolate compute from UI thread
+- PGN input is validated before import
 
-- Full PGN
-- Current FEN
-- Engine evaluation
-- Best moves
+## 6. Risks and Gaps
 
-Questions supported examples:
+| Risk / Gap                     | Current impact                   | Mitigation path                                           |
+| ------------------------------ | -------------------------------- | --------------------------------------------------------- |
+| Per-position analysis only     | Cannot score entire games yet    | Add move-by-move batch analysis pipeline                  |
+| No ELO/accuracy metrics        | Original product promise not met | Implement CPL + classification + estimator                |
+| State split across components  | Harder future scaling            | Consolidate active state into Pinia store                 |
+| Stale tests                    | Regression risk                  | Replace template tests and add composable/component tests |
+| Browser CPU load at high depth | Slower UX on weaker devices      | Add limits, cancel, and optional background queue         |
 
-- “Why is this move bad?”
-- “What was the critical moment?”
-- “How should Black attack here?”
-- “What is the long-term plan?”
+## 7. Updated Roadmap
 
----
+### Phase A - Consolidate Core State
 
-## 3. Technical Architecture
+- Remove or repurpose legacy scaffolding (template store/test files)
+- Keep current UX unchanged while reducing state duplication
 
-### 3.1 Frontend
+### Phase B - Game-Wide Analysis
 
-- **Framework:** Vue 3 (Composition API)
-- **Language:** TypeScript
-- **Styling:** SCSS
-- **State Management:** Pinia
-- **Routing:** Vue Router (optional future expansion)
+- Analyze each played move against engine best line
+- Compute CPL and classification tags (inaccuracy/mistake/blunder)
+- Persist per-ply analysis results for timeline and summaries
 
-### 3.2 Chess Libraries
+### Phase C - Strength and Insight Layer
 
-- `chess.js` → Move validation + PGN parsing
-- `chessboard.js` or `vue3-chessboard` → Board UI
-- `stockfish.wasm` → Engine analysis
+- Implement heuristic accuracy/ELO estimate from computed metrics
+- Expose white/black summary cards and trend views
+- Include engine context in chat prompts by default
 
-### 3.3 LLM Integration
+### Phase D - Product Hardening
 
-- OpenAI API (user provides API key)
-- Streaming responses (optional enhancement)
-- Context-aware prompt construction
+- Replace stale tests with meaningful unit/integration coverage
+- Add loading/abort controls for long analysis runs
+- Improve import/export workflows and error reporting
 
-### 3.4 Project Structure
+## 8. Definition of Done for Next Milestone
 
-src/
-├── components/
-│ ├── ChessBoard.vue
-│ ├── Sidebar.vue
-│ ├── AnalysisPanel.vue
-│ ├── ChatWindow.vue
-│ └── MoveList.vue
-│
-├── composables/
-│ ├── useStockfish.ts
-│ ├── useGameState.ts
-│ └── useChat.ts
-│
-├── store/
-│ └── gameStore.ts
-│
-├── types/
-│ └── chess.ts
-│
-├── styles/
-│ └── main.scss
-│
-└── App.vue
+The next milestone is complete when:
 
----
-
-## 4. ELO Estimation Strategy
-
-We estimate ELO based on:
-
-- Average centipawn loss
-- Blunder rate
-- Accuracy percentage
-- Comparison with known ELO-performance datasets
-
-### Basic heuristic model (MVP):
-
-- 0–20 avg CPL → 2400+
-- 20–40 → 2000–2400
-- 40–70 → 1600–2000
-- 70–120 → 1200–1600
-- 120+ → <1200
-
-### Later enhancement:
-
-- Logistic regression model
-- Dataset-trained estimator
-
----
-
-## 5. Development Plan
-
-### Phase 1 — Project Setup
-
-**Goal:** Get base app running
-
-- Initialize Vue 3 + Vite + TypeScript project
-- Configure SCSS
-- Setup ESLint + Prettier
-- Setup Git + GitHub repo
-- Basic layout scaffolding
-
-**Deliverable:**  
-Empty UI layout with placeholders
-
----
-
-### Phase 2 — Chess Board Integration
-
-**Goal:** Fully working interactive board
-
-- Install chess.js
-- Install board component
-- Implement move handling
-- Load FEN
-- Load PGN
-- Move navigation
-
-**Deliverable:**  
-User can paste PGN and step through moves
-
----
-
-### Phase 3 — Stockfish Integration
-
-**Goal:** Engine analysis working
-
-- Add Stockfish WASM
-- Web Worker integration
-- Parse engine output
-- Extract:
-  - Evaluation
-  - Best moves
-  - MultiPV lines
-- Show ranked move list
-
-**Deliverable:**  
-Best moves displayed per position
-
----
-
-### Phase 4 — Game Strength Estimation
-
-**Goal:** Compute player performance metrics
-
-- Analyze each move
-- Compute centipawn loss
-- Detect:
-  - Blunders
-  - Mistakes
-  - Inaccuracies
-- Compute accuracy %
-- Estimate ELO
-
-**Deliverable:**  
-Sidebar shows White and Black ELO
-
----
-
-### Phase 5 — Chat Integration
-
-**Goal:** LLM-powered explanation
-
-- Chat UI component
-- API key input
-- Secure local storage of key
-- Context builder
-- Send board + engine state to LLM
-- Render responses
-
-**Deliverable:**  
-User can ask position-specific questions
-
----
-
-### Phase 6 — UX Improvements
-
-- Loading indicators
-- Engine depth slider
-- Move classification coloring
-- Responsive layout
-- Dark mode
-- Performance optimization
-
----
-
-## 6. Stretch Features (Future)
-
-- Cloud save games
-- User accounts
-- Game comparison mode
-- Opening explorer
-- Blunder timeline graph
-- Accuracy graph per move
-- Export annotated PGN
-- Puzzle generation from blunders
-- Multiplayer analysis sharing
-
----
-
-## 7. Security Considerations
-
-- Never store OpenAI API key server-side
-- Keep all processing client-side initially
-- Sandboxed Web Worker for Stockfish
-- Input validation for PGN/FEN
-
----
-
-## 8. Risks & Technical Challenges
-
-| Risk                             | Mitigation                   |
-| -------------------------------- | ---------------------------- |
-| Stockfish performance in browser | Limit depth, use Web Worker  |
-| Large PGN freezing UI            | Progressive analysis         |
-| API key misuse                   | Local-only storage           |
-| Engine-LLM sync issues           | Centralized game state store |
-
----
-
-## 9. Definition of Done (MVP)
-
-The app is complete when:
-
-- User pastes PGN
-- Engine analyzes entire game
-- Estimated ELO is shown
-- User can navigate moves
-- Best moves are shown per position
-- Chat explains positions intelligently
-
----
-
-## 10. Repository Setup
-
-Recommended Git workflow:
-
-- `main` → Production-ready
-- `develop` → Integration branch
-
-Feature branches:
-
-- `feature/chessboard`
-- `feature/stockfish`
-- `feature/chat`
-- `feature/elo-estimator`
+- Whole-game analysis runs from imported PGN without manual per-position reruns
+- Each move has stored engine delta/CPL and classification
+- A visible white/black performance summary is shown
+- Chat can reference engine output for the selected position
+- Test suite covers core composables and key UI flows

@@ -1,65 +1,52 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import { useChat } from '@/composables/useChat'
-
-const props = defineProps<{
-  currentFen: string
-  currentPgn: string
-}>()
+import { storeToRefs } from 'pinia'
+import { useGameStore } from '@/store/gameStore'
 
 const draft = ref('')
 const keyDraft = ref('')
 const passphraseDraft = ref('')
 const includeCurrentPosition = ref(false)
+const gameStore = useGameStore()
 const {
   messages,
   sending,
-  send,
   apiKey,
-  loadApiKey,
-  saveApiKey,
-  clearApiKey,
-  unlockApiKey,
-  lockApiKey,
   hasStoredEncryptedKey,
-  lastError,
-} = useChat()
+  chatError,
+} = storeToRefs(gameStore)
 
 onMounted(() => {
-  loadApiKey().then(() => {
+  gameStore.loadChatState().then(() => {
     keyDraft.value = apiKey.value
   })
 })
 
 const saveKey = async () => {
-  await saveApiKey(keyDraft.value, passphraseDraft.value)
+  await gameStore.saveChatApiKey(keyDraft.value, passphraseDraft.value)
 }
 
 const removeKey = () => {
-  clearApiKey()
+  gameStore.clearChatApiKey()
   keyDraft.value = ''
   passphraseDraft.value = ''
 }
 
 const unlockKey = async () => {
-  await unlockApiKey(passphraseDraft.value)
+  await gameStore.unlockChatApiKey(passphraseDraft.value)
   if (apiKey.value) {
     keyDraft.value = apiKey.value
   }
 }
 
 const lockKey = () => {
-  lockApiKey()
+  gameStore.lockChatApiKey()
   keyDraft.value = ''
 }
 
 const sendMessage = async () => {
   if (!draft.value.trim() || sending.value) return
-  await send(draft.value, {
-    includeCurrentPosition: includeCurrentPosition.value,
-    currentFen: props.currentFen,
-    currentPgn: props.currentPgn,
-  })
+  await gameStore.sendChatMessage(draft.value, includeCurrentPosition.value)
   draft.value = ''
 }
 </script>
@@ -111,7 +98,7 @@ const sendMessage = async () => {
         </p>
       </div>
     </div>
-    <p v-if="lastError" class="error">{{ lastError }}</p>
+    <p v-if="chatError" class="error">{{ chatError }}</p>
     <label class="include-position">
       <input v-model="includeCurrentPosition" type="checkbox" />
       Include current position?
