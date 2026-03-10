@@ -168,7 +168,7 @@ const applyImportedPgn = (pgnText: string) => {
   const importer = new Chess()
   try {
     importer.loadPgn(trimmed)
-  } catch (_error) {
+  } catch {
     emit('pgn-import-status', { ok: false, message: 'Invalid PGN. Please check the format.' })
     return
   }
