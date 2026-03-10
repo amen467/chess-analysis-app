@@ -158,6 +158,20 @@ const emitPgn = () => {
   emit('pgn-updated', game.pgn())
 }
 
+const syncAndEmitPosition = () => {
+  syncBoardToCursor()
+  emitPosition()
+  emitPgn()
+}
+
+const setPly = (nextPly: number) => {
+  const clampedPly = Math.max(0, Math.min(nextPly, playedMoves.value.length))
+  if (clampedPly === currentPly.value) return false
+  currentPly.value = clampedPly
+  syncAndEmitPosition()
+  return true
+}
+
 const applyImportedPgn = (pgnText: string) => {
   const trimmed = pgnText.trim()
   if (!trimmed) {
@@ -202,55 +216,35 @@ const onKeyDown = (event: KeyboardEvent) => {
   if (isTypingElement(event.target)) return
 
   if (event.key === 'ArrowLeft') {
-    if (currentPly.value === 0) return
-    event.preventDefault()
-    currentPly.value -= 1
-    syncBoardToCursor()
-    emitPosition()
-    emitPgn()
+    const moved = setPly(currentPly.value - 1)
+    if (moved) {
+      event.preventDefault()
+    }
     return
   }
 
   if (event.key === 'ArrowRight') {
-    if (currentPly.value >= playedMoves.value.length) return
-    event.preventDefault()
-    currentPly.value += 1
-    syncBoardToCursor()
-    emitPosition()
-    emitPgn()
+    const moved = setPly(currentPly.value + 1)
+    if (moved) {
+      event.preventDefault()
+    }
   }
 }
 
 const goToStart = () => {
-  if (currentPly.value === 0) return
-  currentPly.value = 0
-  syncBoardToCursor()
-  emitPosition()
-  emitPgn()
+  setPly(0)
 }
 
 const goBack = () => {
-  if (currentPly.value === 0) return
-  currentPly.value -= 1
-  syncBoardToCursor()
-  emitPosition()
-  emitPgn()
+  setPly(currentPly.value - 1)
 }
 
 const goForward = () => {
-  if (currentPly.value >= playedMoves.value.length) return
-  currentPly.value += 1
-  syncBoardToCursor()
-  emitPosition()
-  emitPgn()
+  setPly(currentPly.value + 1)
 }
 
 const goToEnd = () => {
-  if (currentPly.value >= playedMoves.value.length) return
-  currentPly.value = playedMoves.value.length
-  syncBoardToCursor()
-  emitPosition()
-  emitPgn()
+  setPly(playedMoves.value.length)
 }
 
 onMounted(async () => {
@@ -369,11 +363,7 @@ watch(
   () => props.jumpToPly?.id,
   () => {
     if (!props.jumpToPly || !board) return
-    const clampedPly = Math.max(0, Math.min(props.jumpToPly.ply, playedMoves.value.length))
-    currentPly.value = clampedPly
-    syncBoardToCursor()
-    emitPosition()
-    emitPgn()
+    setPly(props.jumpToPly.ply)
   },
 )
 

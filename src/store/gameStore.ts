@@ -103,68 +103,44 @@ export const useGameStore = defineStore('game', () => {
     }
   }
 
-  const initializeEngine = async () => {
-    await start()
-  }
-
-  const teardownEngine = () => {
-    destroy()
-  }
-
-  const cancelEngineAnalysis = () => {
-    cancelAnalysis()
-  }
+  const initializeEngine = start
+  const teardownEngine = destroy
+  const cancelEngineAnalysis = cancelAnalysis
 
   const setEngineEnabled = async (enabled: boolean) => {
     if (enabled === engineEnabled.value) return
 
     if (!enabled) {
       engineEnabled.value = false
-      teardownEngine()
+      destroy()
       return
     }
 
     engineEnabled.value = true
     try {
-      await initializeEngine()
+      await start()
       await runAnalysis()
     } catch {
       engineEnabled.value = false
-      teardownEngine()
+      destroy()
     }
   }
 
-  const loadChatState = async () => {
-    await loadApiKey()
-  }
-
-  const saveChatApiKey = async (nextKey: string, passphrase: string) => {
-    await saveApiKey(nextKey, passphrase)
-  }
-
-  const clearChatApiKey = () => {
-    clearApiKey()
-  }
-
-  const unlockChatApiKey = async (passphrase: string) => {
-    await unlockApiKey(passphrase)
-  }
-
-  const lockChatApiKey = () => {
-    lockApiKey()
-  }
+  const loadChatState = loadApiKey
+  const saveChatApiKey = saveApiKey
+  const clearChatApiKey = clearApiKey
+  const unlockChatApiKey = unlockApiKey
+  const lockChatApiKey = lockApiKey
 
   const sendChatMessage = async (text: string, includeCurrentPosition: boolean) => {
-    return await send(text, {
+    return send(text, {
       includeCurrentPosition,
       currentFen: currentFen.value,
       currentPgn: currentPgn.value,
     })
   }
 
-  const cancelChatRequest = () => {
-    cancelSend()
-  }
+  const cancelChatRequest = cancelSend
 
   return {
     engineEnabled,
