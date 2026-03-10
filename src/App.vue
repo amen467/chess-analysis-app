@@ -14,6 +14,7 @@ const {
   pgnInput,
   pgnImportRequest,
   jumpToPlyRequest,
+  pgnImportStatus,
   currentFen,
   analysisDepth,
   analysisLines,
@@ -47,6 +48,14 @@ onBeforeUnmount(() => {
       <div class="header-actions">
         <button type="button" class="ghost" @click="gameStore.requestPgnImport">Import PGN</button>
       </div>
+      <p
+        v-if="pgnImportStatus && !pgnImportStatus.ok"
+        class="import-status error"
+        role="status"
+        aria-live="polite"
+      >
+        {{ pgnImportStatus.message }}
+      </p>
     </section>
 
     <main class="layout">
