@@ -1,54 +1,118 @@
-# chess-analysis-app
+# Chess Analysis App
 
-This template should help get you started developing with Vue 3 in Vite.
+Client-side chess analysis workspace built with Vue 3 + TypeScript.
 
-## Recommended IDE Setup
+The app lets you:
+- Import a PGN and navigate through the game
+- Analyze the current position with Stockfish (MultiPV)
+- Ask chess questions in an in-app chat powered by OpenAI
 
-[VS Code](https://code.visualstudio.com/) + [Vue (Official)](https://marketplace.visualstudio.com/items?itemName=Vue.volar) (and disable Vetur).
+## Core Features
 
-## Recommended Browser Setup
+### PGN + Board
+- Paste and import PGN text
+- Drag pieces on the board to explore lines
+- Navigate by:
+  - Move list click
+  - Board controls (`<<`, `<`, `>`, `>>`)
+  - Keyboard arrows (`Left` / `Right`)
+- Current FEN and PGN are kept in app state and shared with analysis/chat
 
-- Chromium-based browsers (Chrome, Edge, Brave, etc.):
-  - [Vue.js devtools](https://chromewebstore.google.com/detail/vuejs-devtools/nhdogjmejiglipccpnnnanhbledajbpd)
-  - [Turn on Custom Object Formatter in Chrome DevTools](http://bit.ly/object-formatters)
-- Firefox:
-  - [Vue.js devtools](https://addons.mozilla.org/en-US/firefox/addon/vue-js-devtools/)
-  - [Turn on Custom Object Formatter in Firefox DevTools](https://fxdx.dev/firefox-devtools-custom-object-formatters/)
+### Stockfish Analysis
+- Browser worker-based Stockfish integration (`stockfish-18-lite-single`)
+- Engine controls:
+  - Enable/disable engine
+  - Depth (1-30)
+  - MultiPV lines (1-40)
+- Analysis panel shows:
+  - Best lines
+  - Eval in pawns or mate score
+  - SAN-formatted PV lines
 
-## Type Support for `.vue` Imports in TS
+### Chat (OpenAI Responses API)
+- Uses `gpt-4.1-mini` through `https://api.openai.com/v1/responses`
+- Supports multi-turn context with `previous_response_id`
+- Optional toggle to include current FEN/PGN in the prompt
+- Request controls:
+  - Timeout after 45s
+  - Cancel in-flight request from the UI
 
-TypeScript cannot handle type information for `.vue` imports by default, so we replace the `tsc` CLI with `vue-tsc` for type checking. In editors, we need [Volar](https://marketplace.visualstudio.com/items?itemName=Vue.volar) to make the TypeScript language service aware of `.vue` types.
+## API Key Policy (Required)
 
-## Customize configuration
+You must provide your own OpenAI API key.  
+This app does not ship with a server-side key and does not proxy OpenAI calls through a backend.
 
-See [Vite Configuration Reference](https://vite.dev/config/).
+### Key Storage Model
+- Key can be saved encrypted in `localStorage`
+- Encryption uses PBKDF2-SHA256 + AES-GCM
+- Passphrase must be at least 8 characters
+- Passphrase is cached only in `sessionStorage` for unlock convenience
+- Key is decrypted only in-memory while unlocked
 
-## Project Setup
+## Stockfish Readiness Hardening
+
+Engine startup now uses a proper UCI handshake:
+- Wait for `uciok`
+- Then wait for `readyok`
+
+Startup has a 15s timeout and fails cleanly instead of hanging.
+
+## Tech Stack
+
+- Vue 3 (`<script setup>`)
+- TypeScript
+- Pinia
+- `chess.js`
+- `@chrisoakman/chessboardjs`
+- Stockfish Web Worker + WASM
+- Vite + Vitest + ESLint
+
+## Requirements
+
+- Node.js `^20.19.0 || >=22.12.0`
+- Modern browser with support for:
+  - Web Workers
+  - WebAssembly
+  - Web Crypto API
+
+## Local Development
+
+Install dependencies:
 
 ```sh
 npm install
 ```
 
-### Compile and Hot-Reload for Development
+Run dev server:
 
 ```sh
 npm run dev
 ```
 
-### Type-Check, Compile and Minify for Production
+Open the URL shown by Vite (usually `http://localhost:5173`).
 
-```sh
-npm run build
-```
+## Available Scripts
 
-### Run Unit Tests with [Vitest](https://vitest.dev/)
+- `npm run dev` - Start local development server
+- `npm run build` - Type-check and create production build
+- `npm run preview` - Preview production build locally
+- `npm run test:unit` - Run Vitest unit tests
+- `npm run lint` - Run oxlint + eslint with fixes
+- `npm run format` - Run Prettier on `src/`
 
-```sh
-npm run test:unit
-```
+## Current Scope / Known Gaps
 
-### Lint with [ESLint](https://eslint.org/)
+- Analysis is position-based (not full-game batch scoring yet)
+- No ELO estimation or CPL/blunder summary yet
+- Test coverage is currently minimal
 
-```sh
-npm run lint
-```
+## Project Structure
+
+- `src/App.vue` - Main layout and feature wiring
+- `src/components/ChessBoard.vue` - Board, PGN import, and navigation
+- `src/components/MoveList.vue` - Clickable move list
+- `src/components/AnalysisPanel.vue` - Engine controls and output
+- `src/components/ChatWindow.vue` - Chat UI and API key controls
+- `src/composables/useStockfish.ts` - Worker lifecycle and UCI analysis
+- `src/composables/useChat.ts` - OpenAI requests and encrypted key handling
+- `src/store/gameStore.ts` - Shared app state/actions
