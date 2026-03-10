@@ -8,7 +8,13 @@ const emit = defineEmits<{
 
 const moves = computed(() => props.moves ?? [])
 const fullMoves = computed(() => {
-  const grouped: Array<{ number: number; white: string; whitePly: number; black?: string; blackPly?: number }> = []
+  const grouped: Array<{
+    number: number
+    white: string
+    whitePly: number
+    black?: string
+    blackPly?: number
+  }> = []
   for (let i = 0; i < moves.value.length; i += 2) {
     const white = moves.value[i]
     if (!white) continue
@@ -34,7 +40,9 @@ const jumpToPly = (ply: number) => {
     <ol>
       <li v-for="move in fullMoves" :key="move.number">
         <span class="move-number">{{ move.number }}.</span>
-        <button type="button" class="ply" @click="jumpToPly(move.whitePly)">{{ move.white }}</button>
+        <button type="button" class="ply" @click="jumpToPly(move.whitePly)">
+          {{ move.white }}
+        </button>
         <button
           v-if="move.black && move.blackPly"
           type="button"
@@ -50,15 +58,6 @@ const jumpToPly = (ply: number) => {
 </template>
 
 <style scoped lang="scss">
-// .move-list {
-//   padding: 1rem;
-//   background: #ffffff;
-//   border: 1px solid #e5e7eb;
-//   border-radius: 10px;
-//   max-height: 300px;
-//   overflow: auto;
-// }
-
 header {
   font-weight: 600;
   margin-bottom: 0.5rem;

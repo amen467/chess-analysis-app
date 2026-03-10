@@ -225,12 +225,6 @@ h1 {
   min-height: 0;
 }
 
-// .moves-area,
-// .chat-area,
-// .analysis-area {
-//   padding: 0 1rem;
-// }
-
 .analysis-area {
   grid-column: 1;
   min-height: 0;
@@ -238,7 +232,6 @@ h1 {
 
 .moves-area {
   grid-column: 1;
-  // padding: 0 1rem;
 }
 
 .chat-area {

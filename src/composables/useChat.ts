@@ -19,6 +19,8 @@ const API_KEY_STORAGE_KEY = 'chess-analysis.openai.api-key.enc'
 const LEGACY_API_KEY_STORAGE_KEY = 'chess-analysis.openai.api-key'
 const SESSION_PASSPHRASE_KEY = 'chess-analysis.openai.api-key.passphrase'
 const PBKDF2_ITERATIONS = 250000
+const CHAT_SYSTEM_PROMPT =
+  'You are a concise chess assistant inside a chess analysis app. Only answer questions related to the included chess game or chess more generally, such as rules, strategies, openings, tactics, etc. If a user asks about anything unrelated to chess, politely say that this assistant only answers chess-related questions. If the question is about the current position and the PGN is not included, remind the user to check the "include current position" box in the app which originated the request.'
 
 interface EncryptedApiKeyPayload {
   v: 1
@@ -41,6 +43,22 @@ interface ResponsesApiPayload {
   id?: string
   output_text?: string
   output?: ResponsesOutputItem[]
+}
+
+interface ResponsesInputContentItem {
+  type: 'input_text'
+  text: string
+}
+
+interface ResponsesInputItem {
+  role: 'system' | 'user'
+  content: ResponsesInputContentItem[]
+}
+
+interface ResponsesRequestPayload {
+  model: string
+  input: ResponsesInputItem[]
+  previous_response_id?: string
 }
 
 const encoder = new TextEncoder()
@@ -135,6 +153,31 @@ const extractAssistantText = (payload: ResponsesApiPayload) => {
 
   if (fromOutput) return fromOutput
   return payload.output_text?.trim() || ''
+}
+
+const buildChatRequest = (
+  composedUserText: string,
+  previousResponseId: string | null,
+): ResponsesRequestPayload => {
+  const payload: ResponsesRequestPayload = {
+    model: OPENAI_MODEL,
+    input: [
+      {
+        role: 'system',
+        content: [{ type: 'input_text', text: CHAT_SYSTEM_PROMPT }],
+      },
+      {
+        role: 'user',
+        content: [{ type: 'input_text', text: composedUserText }],
+      },
+    ],
+  }
+
+  if (previousResponseId) {
+    payload.previous_response_id = previousResponseId
+  }
+
+  return payload
 }
 
 export function useChat() {
@@ -285,34 +328,7 @@ export function useChat() {
     })
 
     try {
-      const requestPayload: {
-        model: string
-        input: Array<{
-          role: 'system' | 'user'
-          content: Array<{ type: 'input_text'; text: string }>
-        }>
-        previous_response_id?: string
-      } = {
-        model: OPENAI_MODEL,
-        input: [
-          {
-            role: 'system',
-            content: [
-              {
-                type: 'input_text',
-                text: 'You are a concise chess assistant inside a chess analysis app. Only answer questions related to the included chess game or chess more generally, such as rules, strategies, openings, tactics, etc. If a user asks about anything unrelated to chess, politely say that this assistant only answers chess-related questions. If the question is about the current position and the PGN is not included, remind the user to check the "include current position" box in the app which originated the request.',
-              },
-            ],
-          },
-          {
-            role: 'user',
-            content: [{ type: 'input_text', text: composedUserText }],
-          },
-        ],
-      }
-      if (lastResponseId.value) {
-        requestPayload.previous_response_id = lastResponseId.value
-      }
+      const requestPayload = buildChatRequest(composedUserText, lastResponseId.value)
 
       const response = await fetch(OPENAI_API_URL, {
         method: 'POST',
