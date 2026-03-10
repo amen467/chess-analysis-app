@@ -46,6 +46,7 @@ export const useGameStore = defineStore('game', () => {
     messages,
     sending,
     send,
+    cancelSend,
     apiKey,
     loadApiKey,
     saveApiKey,
@@ -156,6 +157,10 @@ export const useGameStore = defineStore('game', () => {
     })
   }
 
+  const cancelChatRequest = () => {
+    cancelSend()
+  }
+
   return {
     engineEnabled,
     moves,
@@ -192,5 +197,6 @@ export const useGameStore = defineStore('game', () => {
     unlockChatApiKey,
     lockChatApiKey,
     sendChatMessage,
+    cancelChatRequest,
   }
 })

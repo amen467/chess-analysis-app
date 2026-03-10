@@ -49,6 +49,10 @@ const sendMessage = async () => {
   await gameStore.sendChatMessage(draft.value, includeCurrentPosition.value)
   draft.value = ''
 }
+
+const cancelMessage = () => {
+  gameStore.cancelChatRequest()
+}
 </script>
 
 <template>
@@ -108,6 +112,7 @@ const sendMessage = async () => {
       <button type="submit" :disabled="sending || !apiKey">
         {{ sending ? 'Sending...' : 'Send' }}
       </button>
+      <button v-if="sending" type="button" class="cancel" @click="cancelMessage">Cancel</button>
     </form>
   </section>
 </template>
@@ -255,6 +260,12 @@ header {
   color: #0b1021;
   font-weight: 700;
   cursor: pointer;
+}
+
+.composer button.cancel {
+  background: transparent;
+  color: #f8fafc;
+  border: 1px solid #334155;
 }
 
 .composer button:disabled,

@@ -13,6 +13,7 @@ interface SendOptions {
 
 const OPENAI_API_URL = 'https://api.openai.com/v1/responses'
 const OPENAI_MODEL = 'gpt-4.1-mini'
+const CHAT_REQUEST_TIMEOUT_MS = 45000
 const API_KEY_STORAGE_KEY = 'chess-analysis.openai.api-key.enc'
 const LEGACY_API_KEY_STORAGE_KEY = 'chess-analysis.openai.api-key'
 const SESSION_PASSPHRASE_KEY = 'chess-analysis.openai.api-key.passphrase'
@@ -142,6 +143,24 @@ export function useChat() {
   const lastError = ref<string | null>(null)
   const hasStoredEncryptedKey = ref(false)
   const lastResponseId = ref<string | null>(null)
+  let activeRequestController: AbortController | null = null
+  let activeRequestTimeout: ReturnType<typeof setTimeout> | null = null
+  let activeAbortReason: 'timeout' | 'user' | null = null
+
+  const clearActiveRequestState = () => {
+    if (activeRequestTimeout !== null) {
+      clearTimeout(activeRequestTimeout)
+      activeRequestTimeout = null
+    }
+    activeRequestController = null
+    activeAbortReason = null
+  }
+
+  const cancelSend = () => {
+    if (!activeRequestController) return
+    activeAbortReason = 'user'
+    activeRequestController.abort()
+  }
 
   const loadApiKey = async () => {
     if (typeof window === 'undefined') return
@@ -196,6 +215,7 @@ export function useChat() {
   }
 
   const clearApiKey = () => {
+    cancelSend()
     if (typeof window === 'undefined') return
     lastError.value = null
     apiKey.value = ''
@@ -207,6 +227,7 @@ export function useChat() {
   }
 
   const lockApiKey = () => {
+    cancelSend()
     apiKey.value = ''
     lastResponseId.value = null
     if (typeof window !== 'undefined') {
@@ -244,6 +265,7 @@ export function useChat() {
 
   const send = async (text: string, options: SendOptions = {}) => {
     if (!text.trim()) return
+    if (sending.value) return
     if (!apiKey.value.trim()) {
       lastError.value = 'Add your API key before sending messages.'
       return
@@ -265,6 +287,14 @@ export function useChat() {
       }
       composedUserText = `${composedUserText}\n\n${contextLines.join('\n\n')}`
     }
+
+    const controller = new AbortController()
+    activeRequestController = controller
+    activeAbortReason = null
+    activeRequestTimeout = setTimeout(() => {
+      activeAbortReason = 'timeout'
+      controller.abort()
+    }, CHAT_REQUEST_TIMEOUT_MS)
 
     try {
       const requestPayload: {
@@ -295,7 +325,6 @@ export function useChat() {
       if (lastResponseId.value) {
         requestPayload.previous_response_id = lastResponseId.value
       }
-      console.log('OpenAI request payload:', requestPayload)
 
       const response = await fetch(OPENAI_API_URL, {
         method: 'POST',
@@ -304,6 +333,7 @@ export function useChat() {
           Authorization: `Bearer ${apiKey.value}`,
         },
         body: JSON.stringify(requestPayload),
+        signal: controller.signal,
       })
 
       if (!response.ok) {
@@ -322,10 +352,28 @@ export function useChat() {
       const assistantText = extractAssistantText(payload) || 'No response text returned.'
       messages.value.push({ role: 'assistant', text: assistantText })
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unable to reach OpenAI.'
+      const isAbortError = error instanceof DOMException && error.name === 'AbortError'
+      let message: string
+      let shouldAppendAssistantError = true
+
+      if (isAbortError) {
+        if (activeAbortReason === 'timeout') {
+          const timeoutSeconds = Math.round(CHAT_REQUEST_TIMEOUT_MS / 1000)
+          message = `Request timed out after ${timeoutSeconds}s.`
+        } else {
+          message = 'Request canceled.'
+          shouldAppendAssistantError = false
+        }
+      } else {
+        message = error instanceof Error ? error.message : 'Unable to reach OpenAI.'
+      }
+
       lastError.value = message
-      messages.value.push({ role: 'assistant', text: `Error: ${message}` })
+      if (shouldAppendAssistantError) {
+        messages.value.push({ role: 'assistant', text: `Error: ${message}` })
+      }
     } finally {
+      clearActiveRequestState()
       sending.value = false
     }
   }
@@ -340,6 +388,7 @@ export function useChat() {
     clearApiKey,
     unlockApiKey,
     lockApiKey,
+    cancelSend,
     hasStoredEncryptedKey,
     lastError,
   }
