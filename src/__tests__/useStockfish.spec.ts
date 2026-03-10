@@ -171,9 +171,9 @@ describe('useStockfish', () => {
 
     await vi.advanceTimersByTimeAsync(45000)
     const analyzeError = await analyzeErrorPromise
-    expect(analyzeError?.message).toBe('Analysis timed out after 30s.')
+    expect(analyzeError?.message).toBe('Analysis timed out after 45s.')
     expect(stockfish.isAnalyzing.value).toBe(false)
-    expect(stockfish.lastError.value).toBe('Analysis timed out after 30s.')
+    expect(stockfish.lastError.value).toBe('Analysis timed out after 45s.')
   })
 
   it('keeps isAnalyzing true when replacing an in-flight analysis', async () => {
