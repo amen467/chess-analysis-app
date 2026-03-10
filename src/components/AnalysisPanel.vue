@@ -86,20 +86,24 @@ const formatPvLine = (line: string[], fen: string) => {
 <template>
   <section class="analysis-panel">
     <div class="analysis-header">
-      <h2>Analysis</h2>
-      <label class="toggle">
-        <input type="checkbox" :checked="enabled" @change="onEnabledChange" />
-        <span>Engine {{ enabled ? 'On' : 'Off' }}</span>
-      </label>
-      <label class="control">
-        Depth
-        <input type="number" min="1" max="30" :value="depth" @input="onDepthInput" />
-      </label>
-      <label class="control">
-        Lines
-        <input type="number" min="1" max="40" :value="multiPv" @input="onMultiPvInput" />
-      </label>
-      <button v-if="loading" type="button" class="cancel-button" @click="cancelAnalysis">Cancel</button>
+      <div class="header-row">
+        <h2>Analysis</h2>
+        <label class="toggle">
+          <input type="checkbox" :checked="enabled" @change="onEnabledChange" />
+          <span>Engine {{ enabled ? 'On' : 'Off' }}</span>
+        </label>
+      </div>
+      <div class="controls-row">
+        <label class="control">
+          Depth
+          <input type="number" min="1" max="30" :value="depth" @input="onDepthInput" />
+        </label>
+        <label class="control">
+          Lines
+          <input type="number" min="1" max="40" :value="multiPv" @input="onMultiPvInput" />
+        </label>
+        <button v-if="loading" type="button" class="cancel-button" @click="cancelAnalysis">Cancel</button>
+      </div>
     </div>
     <div class="analysis-body">
       <p v-if="!enabled" class="hint">Engine is off.</p>
@@ -148,6 +152,17 @@ const formatPvLine = (line: string[], fen: string) => {
 }
 
 .analysis-header {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.header-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.controls-row {
   display: flex;
   align-items: end;
   gap: 0.75rem;
