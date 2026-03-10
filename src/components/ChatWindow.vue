@@ -8,13 +8,7 @@ const keyDraft = ref('')
 const passphraseDraft = ref('')
 const includeCurrentPosition = ref(false)
 const gameStore = useGameStore()
-const {
-  messages,
-  sending,
-  apiKey,
-  hasStoredEncryptedKey,
-  chatError,
-} = storeToRefs(gameStore)
+const { messages, sending, apiKey, hasStoredEncryptedKey, chatError } = storeToRefs(gameStore)
 
 onMounted(() => {
   gameStore.loadChatState().then(() => {
@@ -135,7 +129,7 @@ header {
 
 .api-key {
   display: grid;
-  gap: 0.4rem;
+  gap: 1rem;
 }
 
 .api-key label {
