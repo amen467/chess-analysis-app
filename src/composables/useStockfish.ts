@@ -282,6 +282,40 @@ export function useStockfish() {
     await ensureWorker()
   }
 
+  const cancellationHandlers: Record<
+    AnalysisCancelReason,
+    (requestId: number, timeoutSeconds: number) => void
+  > = {
+    timeout: (requestId, timeoutSeconds) => {
+      post('stop')
+      abortPendingAnalysis(`Analysis timed out after ${timeoutSeconds}s.`, {
+        persistError: true,
+        requestId,
+      })
+    },
+    user: (requestId) => {
+      post('stop')
+      abortPendingAnalysis('Analysis canceled by user.', { requestId })
+    },
+    stopped: (requestId) => {
+      post('stop')
+      abortPendingAnalysis('Analysis stopped.', { requestId })
+    },
+    replaced: (requestId) => {
+      post('stop')
+      abortPendingAnalysis('Analysis replaced by a newer request.', {
+        stopAnalyzing: false,
+        requestId,
+      })
+    },
+    shutdown: (requestId) => {
+      abortPendingAnalysis('Stockfish engine stopped.', { requestId })
+    },
+    'worker-failure': (requestId) => {
+      abortPendingAnalysis(lastError.value ?? 'Stockfish worker crashed.', { requestId })
+    },
+  }
+
   const analyzePosition = async (fen: string, options: AnalyzeOptions = {}) => {
     await start()
     resetAnalysis()
@@ -299,43 +333,8 @@ export function useStockfish() {
     let requestId = 0
     requestId = analysisLifecycle.begin(() => {
       const cancelReason = analysisLifecycle.getCancelReason()
-      if (cancelReason === 'timeout') {
-        post('stop')
-        abortPendingAnalysis(`Analysis timed out after ${timeoutSeconds}s.`, {
-          persistError: true,
-          requestId,
-        })
-        return
-      }
-
-      if (cancelReason === 'user') {
-        post('stop')
-        abortPendingAnalysis('Analysis canceled by user.', { requestId })
-        return
-      }
-
-      if (cancelReason === 'stopped') {
-        post('stop')
-        abortPendingAnalysis('Analysis stopped.', { requestId })
-        return
-      }
-
-      if (cancelReason === 'replaced') {
-        post('stop')
-        abortPendingAnalysis('Analysis replaced by a newer request.', {
-          stopAnalyzing: false,
-          requestId,
-        })
-        return
-      }
-
-      if (cancelReason === 'shutdown') {
-        abortPendingAnalysis('Stockfish engine stopped.', { requestId })
-        return
-      }
-
-      if (cancelReason === 'worker-failure') {
-        abortPendingAnalysis(lastError.value ?? 'Stockfish worker crashed.', { requestId })
+      if (cancelReason) {
+        cancellationHandlers[cancelReason](requestId, timeoutSeconds)
         return
       }
 

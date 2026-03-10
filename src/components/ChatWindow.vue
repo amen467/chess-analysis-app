@@ -11,30 +11,30 @@ const gameStore = useGameStore()
 const { messages, sending, apiKey, hasStoredEncryptedKey, chatError } = storeToRefs(gameStore)
 
 onMounted(() => {
-  gameStore.loadChatState().then(() => {
+  gameStore.loadApiKey().then(() => {
     keyDraft.value = apiKey.value
   })
 })
 
 const saveKey = async () => {
-  await gameStore.saveChatApiKey(keyDraft.value, passphraseDraft.value)
+  await gameStore.saveApiKey(keyDraft.value, passphraseDraft.value)
 }
 
 const removeKey = () => {
-  gameStore.clearChatApiKey()
+  gameStore.clearApiKey()
   keyDraft.value = ''
   passphraseDraft.value = ''
 }
 
 const unlockKey = async () => {
-  await gameStore.unlockChatApiKey(passphraseDraft.value)
+  await gameStore.unlockApiKey(passphraseDraft.value)
   if (apiKey.value) {
     keyDraft.value = apiKey.value
   }
 }
 
 const lockKey = () => {
-  gameStore.lockChatApiKey()
+  gameStore.lockApiKey()
   keyDraft.value = ''
 }
 
@@ -47,7 +47,7 @@ const sendMessage = async () => {
 }
 
 const cancelMessage = () => {
-  gameStore.cancelChatRequest()
+  gameStore.cancelSend()
 }
 </script>
 

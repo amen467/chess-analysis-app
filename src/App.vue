@@ -25,7 +25,7 @@ const {
 } = storeToRefs(gameStore)
 
 onBeforeUnmount(() => {
-  gameStore.teardownEngine()
+  gameStore.destroy()
 })
 </script>
 
@@ -85,7 +85,7 @@ onBeforeUnmount(() => {
             :error="analysisError"
             :evaluation="evaluation"
             @update:enabled="gameStore.setEngineEnabled"
-            @cancel-analysis="gameStore.cancelEngineAnalysis"
+            @cancel-analysis="gameStore.cancelAnalysis"
           />
         </section>
         <section class="chat-area">

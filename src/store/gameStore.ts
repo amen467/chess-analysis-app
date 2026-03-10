@@ -103,10 +103,6 @@ export const useGameStore = defineStore('game', () => {
     }
   }
 
-  const initializeEngine = start
-  const teardownEngine = destroy
-  const cancelEngineAnalysis = cancelAnalysis
-
   const setEngineEnabled = async (enabled: boolean) => {
     if (enabled === engineEnabled.value) return
 
@@ -126,12 +122,6 @@ export const useGameStore = defineStore('game', () => {
     }
   }
 
-  const loadChatState = loadApiKey
-  const saveChatApiKey = saveApiKey
-  const clearChatApiKey = clearApiKey
-  const unlockChatApiKey = unlockApiKey
-  const lockChatApiKey = lockApiKey
-
   const sendChatMessage = async (text: string, includeCurrentPosition: boolean) => {
     return send(text, {
       includeCurrentPosition,
@@ -139,8 +129,6 @@ export const useGameStore = defineStore('game', () => {
       currentPgn: currentPgn.value,
     })
   }
-
-  const cancelChatRequest = cancelSend
 
   return {
     engineEnabled,
@@ -157,9 +145,19 @@ export const useGameStore = defineStore('game', () => {
     isAnalyzing,
     evaluation,
     analysisError,
+    start,
+    destroy,
+    cancelAnalysis,
     messages,
     sending,
+    send,
+    cancelSend,
     apiKey,
+    loadApiKey,
+    saveApiKey,
+    clearApiKey,
+    unlockApiKey,
+    lockApiKey,
     hasStoredEncryptedKey,
     chatError,
     setMoves,
@@ -170,15 +168,6 @@ export const useGameStore = defineStore('game', () => {
     requestJumpToPly,
     setEngineEnabled,
     runAnalysis,
-    cancelEngineAnalysis,
-    initializeEngine,
-    teardownEngine,
-    loadChatState,
-    saveChatApiKey,
-    clearChatApiKey,
-    unlockChatApiKey,
-    lockChatApiKey,
     sendChatMessage,
-    cancelChatRequest,
   }
 })
