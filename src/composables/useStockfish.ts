@@ -1,6 +1,7 @@
 import { computed, ref } from 'vue'
 import { Chess } from 'chess.js'
 import type { EngineEvaluation, MoveEvaluation } from '@/types/chess'
+import { createRequestLifecycle } from '@/utils/requestLifecycle'
 import stockfishWorkerUrl from 'stockfish/bin/stockfish-18-lite-single.js?url'
 import stockfishWasmUrl from 'stockfish/bin/stockfish-18-lite-single.wasm?url'
 
@@ -10,6 +11,7 @@ interface AnalyzeOptions {
 }
 
 interface PendingAnalysis {
+  requestId: number
   resolve: (value: EngineEvaluation) => void
   reject: (reason?: unknown) => void
 }
@@ -18,6 +20,13 @@ const START_FEN = 'startpos'
 const INITIAL_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'
 const WORKER_STARTUP_TIMEOUT_MS = 15000
 const ANALYSIS_TIMEOUT_MS = 30000
+type AnalysisCancelReason =
+  | 'timeout'
+  | 'user'
+  | 'stopped'
+  | 'replaced'
+  | 'shutdown'
+  | 'worker-failure'
 
 export function useStockfish() {
   const isReady = ref(false)
@@ -25,13 +34,13 @@ export function useStockfish() {
   const lastError = ref<string | null>(null)
   const bestLines = ref<MoveEvaluation[]>([])
   const evaluation = ref<EngineEvaluation | null>(null)
+  const analysisLifecycle = createRequestLifecycle<AnalysisCancelReason>()
 
   let worker: Worker | null = null
   let readyPromise: Promise<void> | null = null
   let readyResolver: (() => void) | null = null
   let readyRejecter: ((reason?: unknown) => void) | null = null
   let workerStartupTimeout: ReturnType<typeof setTimeout> | null = null
-  let analysisTimeout: ReturnType<typeof setTimeout> | null = null
   let sawUciOk = false
   let pending: PendingAnalysis | null = null
   let lastRequestedDepth = 12
@@ -53,12 +62,6 @@ export function useStockfish() {
     workerStartupTimeout = null
   }
 
-  const clearAnalysisTimeout = () => {
-    if (analysisTimeout === null) return
-    clearTimeout(analysisTimeout)
-    analysisTimeout = null
-  }
-
   const resolveReadyState = () => {
     clearStartupTimeout()
     readyResolver?.()
@@ -77,19 +80,33 @@ export function useStockfish() {
 
   const abortPendingAnalysis = (
     message: string,
-    persistError = false,
-    stopAnalyzing = true,
+    options: {
+      persistError?: boolean
+      stopAnalyzing?: boolean
+      requestId?: number
+    } = {},
   ) => {
-    clearAnalysisTimeout()
+    const { persistError = false, stopAnalyzing = true, requestId } = options
     if (stopAnalyzing) {
       isAnalyzing.value = false
     }
     if (persistError) {
       lastError.value = message
     }
-    if (!pending) return
-    pending.reject(new Error(message))
-    pending = null
+    if (pending && (requestId == null || pending.requestId === requestId)) {
+      const pendingRequestId = pending.requestId
+      pending.reject(new Error(message))
+      pending = null
+      analysisLifecycle.end(pendingRequestId)
+      return
+    }
+
+    if (requestId != null) {
+      analysisLifecycle.end(requestId)
+      return
+    }
+
+    analysisLifecycle.clear()
   }
 
   const terminateWorker = (sendQuit: boolean) => {
@@ -108,12 +125,16 @@ export function useStockfish() {
   }
 
   const failWorkerSession = (message: string) => {
-    isAnalyzing.value = false
     isReady.value = false
     sawUciOk = false
     lastError.value = message
     rejectReadyState(message)
-    abortPendingAnalysis(message)
+    if (analysisLifecycle.isActive()) {
+      analysisLifecycle.cancel('worker-failure')
+    } else {
+      isAnalyzing.value = false
+      analysisLifecycle.clear()
+    }
     terminateWorker(false)
   }
 
@@ -203,14 +224,16 @@ export function useStockfish() {
     parseInfoLine(line)
 
     if (line.startsWith('bestmove')) {
-      clearAnalysisTimeout()
+      if (!pending) return
+      const activePending = pending
       isAnalyzing.value = false
-      if (pending && evaluation.value) {
-        pending.resolve(evaluation.value)
-      } else if (pending) {
-        pending.reject(new Error('Stockfish returned no evaluation.'))
+      if (evaluation.value) {
+        activePending.resolve(evaluation.value)
+      } else {
+        activePending.reject(new Error('Stockfish returned no evaluation.'))
       }
       pending = null
+      analysisLifecycle.end(activePending.requestId)
     }
   }
 
@@ -263,15 +286,68 @@ export function useStockfish() {
     await start()
     resetAnalysis()
     lastError.value = null
-    isAnalyzing.value = true
 
     lastRequestedDepth = options.depth ?? 12
     const multiPv = options.multiPv ?? 3
 
-    if (pending) {
-      abortPendingAnalysis('Analysis replaced by a newer request.', false, false)
-      isAnalyzing.value = true
+    if (analysisLifecycle.isActive()) {
+      analysisLifecycle.cancel('replaced')
     }
+
+    isAnalyzing.value = true
+    const timeoutSeconds = Math.round(ANALYSIS_TIMEOUT_MS / 1000)
+    let requestId = 0
+    requestId = analysisLifecycle.begin(() => {
+      const cancelReason = analysisLifecycle.getCancelReason()
+      if (cancelReason === 'timeout') {
+        post('stop')
+        abortPendingAnalysis(`Analysis timed out after ${timeoutSeconds}s.`, {
+          persistError: true,
+          requestId,
+        })
+        return
+      }
+
+      if (cancelReason === 'user') {
+        post('stop')
+        abortPendingAnalysis('Analysis canceled by user.', { requestId })
+        return
+      }
+
+      if (cancelReason === 'stopped') {
+        post('stop')
+        abortPendingAnalysis('Analysis stopped.', { requestId })
+        return
+      }
+
+      if (cancelReason === 'replaced') {
+        post('stop')
+        abortPendingAnalysis('Analysis replaced by a newer request.', {
+          stopAnalyzing: false,
+          requestId,
+        })
+        return
+      }
+
+      if (cancelReason === 'shutdown') {
+        abortPendingAnalysis('Stockfish engine stopped.', { requestId })
+        return
+      }
+
+      if (cancelReason === 'worker-failure') {
+        abortPendingAnalysis(lastError.value ?? 'Stockfish worker crashed.', { requestId })
+        return
+      }
+
+      abortPendingAnalysis('Analysis request canceled.', { requestId })
+    })
+
+    const analysisPromise = new Promise<EngineEvaluation>((resolve, reject) => {
+      pending = { requestId, resolve, reject }
+    })
+    analysisLifecycle.scheduleTimeout(requestId, ANALYSIS_TIMEOUT_MS, 'timeout', () => {
+      analysisLifecycle.cancel('timeout')
+    })
 
     const position = fen.trim() ? `fen ${fen}` : START_FEN
     currentAnalysisFen = fen.trim() || INITIAL_FEN
@@ -280,35 +356,33 @@ export function useStockfish() {
     post(`position ${position}`)
     post(`setoption name MultiPV value ${multiPv}`)
     post(`go depth ${lastRequestedDepth}`)
-    const timeoutSeconds = Math.round(ANALYSIS_TIMEOUT_MS / 1000)
-    analysisTimeout = setTimeout(() => {
-      post('stop')
-      abortPendingAnalysis(`Analysis timed out after ${timeoutSeconds}s.`, true)
-    }, ANALYSIS_TIMEOUT_MS)
 
-    return new Promise<EngineEvaluation>((resolve, reject) => {
-      pending = { resolve, reject }
-    })
+    return analysisPromise
   }
 
   const cancelAnalysis = () => {
-    if (!pending && !isAnalyzing.value) return
-    post('stop')
-    abortPendingAnalysis('Analysis canceled by user.')
+    if (!analysisLifecycle.isActive() && !isAnalyzing.value) return
+    if (!analysisLifecycle.cancel('user')) {
+      post('stop')
+      abortPendingAnalysis('Analysis canceled by user.')
+    }
   }
 
   const stop = () => {
-    if (!pending && !isAnalyzing.value) return
-    post('stop')
-    abortPendingAnalysis('Analysis stopped.')
+    if (!analysisLifecycle.isActive() && !isAnalyzing.value) return
+    if (!analysisLifecycle.cancel('stopped')) {
+      post('stop')
+      abortPendingAnalysis('Analysis stopped.')
+    }
   }
 
   const destroy = () => {
     const shutdownMessage = 'Stockfish engine stopped.'
     clearStartupTimeout()
-    clearAnalysisTimeout()
     rejectReadyState(shutdownMessage)
-    abortPendingAnalysis(shutdownMessage)
+    if (!analysisLifecycle.cancel('shutdown')) {
+      abortPendingAnalysis(shutdownMessage)
+    }
     sawUciOk = false
     isAnalyzing.value = false
     isReady.value = false

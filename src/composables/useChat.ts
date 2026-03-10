@@ -1,4 +1,5 @@
 import { ref } from 'vue'
+import { createRequestLifecycle } from '@/utils/requestLifecycle'
 
 export interface ChatMessage {
   role: 'user' | 'assistant'
@@ -143,23 +144,10 @@ export function useChat() {
   const lastError = ref<string | null>(null)
   const hasStoredEncryptedKey = ref(false)
   const lastResponseId = ref<string | null>(null)
-  let activeRequestController: AbortController | null = null
-  let activeRequestTimeout: ReturnType<typeof setTimeout> | null = null
-  let activeAbortReason: 'timeout' | 'user' | null = null
-
-  const clearActiveRequestState = () => {
-    if (activeRequestTimeout !== null) {
-      clearTimeout(activeRequestTimeout)
-      activeRequestTimeout = null
-    }
-    activeRequestController = null
-    activeAbortReason = null
-  }
+  const requestLifecycle = createRequestLifecycle<'timeout' | 'user'>()
 
   const cancelSend = () => {
-    if (!activeRequestController) return
-    activeAbortReason = 'user'
-    activeRequestController.abort()
+    requestLifecycle.cancel('user')
   }
 
   const loadApiKey = async () => {
@@ -289,12 +277,12 @@ export function useChat() {
     }
 
     const controller = new AbortController()
-    activeRequestController = controller
-    activeAbortReason = null
-    activeRequestTimeout = setTimeout(() => {
-      activeAbortReason = 'timeout'
+    const requestId = requestLifecycle.begin(() => {
       controller.abort()
-    }, CHAT_REQUEST_TIMEOUT_MS)
+    })
+    requestLifecycle.scheduleTimeout(requestId, CHAT_REQUEST_TIMEOUT_MS, 'timeout', () => {
+      controller.abort()
+    })
 
     try {
       const requestPayload: {
@@ -358,7 +346,7 @@ export function useChat() {
       let shouldAppendAssistantError = true
 
       if (isAbortError) {
-        if (activeAbortReason === 'timeout') {
+        if (requestLifecycle.getCancelReason() === 'timeout') {
           const timeoutSeconds = Math.round(CHAT_REQUEST_TIMEOUT_MS / 1000)
           message = `Request timed out after ${timeoutSeconds}s.`
         } else {
@@ -375,7 +363,7 @@ export function useChat() {
       }
       return false
     } finally {
-      clearActiveRequestState()
+      requestLifecycle.end(requestId)
       sending.value = false
     }
   }
