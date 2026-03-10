@@ -169,7 +169,7 @@ describe('useStockfish', () => {
     worker?.emitMessage('readyok')
     await Promise.resolve()
 
-    await vi.advanceTimersByTimeAsync(30000)
+    await vi.advanceTimersByTimeAsync(45000)
     const analyzeError = await analyzeErrorPromise
     expect(analyzeError?.message).toBe('Analysis timed out after 30s.')
     expect(stockfish.isAnalyzing.value).toBe(false)

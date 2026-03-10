@@ -114,13 +114,39 @@ const cancelMessage = () => {
 </template>
 
 <style scoped lang="scss">
+$control-radius: 8px;
+
+@mixin form-input {
+  min-width: 0;
+  border: 1px solid var(--color-border-strong);
+  border-radius: $control-radius;
+  background: var(--color-surface-dark-alt);
+  color: var(--color-text-inverse);
+}
+
+@mixin action-button($py, $px) {
+  padding: $py $px;
+  border: none;
+  border-radius: $control-radius;
+  background: var(--gradient-accent);
+  color: var(--color-surface-dark);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+@mixin ghost-button {
+  background: transparent;
+  color: var(--color-text-inverse);
+  border: 1px solid var(--color-border-strong);
+}
+
 .chat-window {
   display: grid;
   grid-template-rows: auto auto 1fr auto auto;
   gap: 0.75rem;
   padding: 1rem;
-  background: #0b1021;
-  color: #f8fafc;
+  background: var(--color-surface-dark);
+  color: var(--color-text-inverse);
   border-radius: 10px;
 }
 
@@ -132,55 +158,43 @@ header {
 .api-key {
   display: grid;
   gap: 1rem;
-}
 
-.api-key label {
-  font-size: 0.85rem;
-  font-weight: 600;
-}
+  label {
+    font-size: 0.85rem;
+    font-weight: 600;
+  }
 
-.api-key-header {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  align-items: center;
-  gap: 0.5rem;
-}
+  &-header {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    align-items: center;
+    gap: 0.5rem;
 
-.api-key-header input {
-  min-width: 0;
-  padding: 0.55rem 0.7rem;
-  border: 1px solid #1f2937;
-  border-radius: 8px;
-  background: #111827;
-  color: #f8fafc;
-}
+    input {
+      @include form-input;
+      padding: 0.55rem 0.7rem;
+    }
+  }
 
-.api-key-controls {
-  display: grid;
-  grid-template-columns: auto auto auto;
-  gap: 0.5rem;
-}
+  &-controls {
+    display: grid;
+    grid-template-columns: auto auto auto;
+    gap: 0.5rem;
 
-.api-key-controls button {
-  padding: 0.55rem 0.8rem;
-  border: none;
-  border-radius: 8px;
-  background: linear-gradient(135deg, #3b82f6, #22d3ee);
-  color: #0b1021;
-  font-weight: 700;
-  cursor: pointer;
-}
+    button {
+      @include action-button(0.55rem, 0.8rem);
 
-.api-key-controls button.ghost {
-  background: transparent;
-  color: #f8fafc;
-  border: 1px solid #334155;
-}
+      &.ghost {
+        @include ghost-button;
+      }
+    }
+  }
 
-.api-key-note {
-  margin: 0;
-  font-size: 0.8rem;
-  color: #94a3b8;
+  &-note {
+    margin: 0;
+    font-size: 0.8rem;
+    color: var(--color-text-muted);
+  }
 }
 
 .passphrase-label {
@@ -189,12 +203,8 @@ header {
 }
 
 .passphrase-input {
-  min-width: 0;
+  @include form-input;
   padding: 0.55rem 0.7rem;
-  border: 1px solid #1f2937;
-  border-radius: 8px;
-  background: #111827;
-  color: #f8fafc;
 }
 
 .transcript {
@@ -222,7 +232,7 @@ header {
 
 .error {
   margin: 0;
-  color: #fca5a5;
+  color: var(--color-danger-soft);
   font-size: 0.85rem;
 }
 
@@ -231,37 +241,26 @@ header {
   align-items: center;
   gap: 0.5rem;
   font-size: 0.85rem;
-  color: #cbd5e1;
+  color: var(--color-border-muted);
 }
 
 .composer {
   display: flex;
   gap: 0.5rem;
-}
 
-.composer input {
-  flex: 1;
-  padding: 0.6rem 0.8rem;
-  border: 1px solid #1f2937;
-  border-radius: 8px;
-  background: #111827;
-  color: #f8fafc;
-}
+  input {
+    @include form-input;
+    flex: 1;
+    padding: 0.6rem 0.8rem;
+  }
 
-.composer button {
-  padding: 0.6rem 1rem;
-  border: none;
-  border-radius: 8px;
-  background: linear-gradient(135deg, #3b82f6, #22d3ee);
-  color: #0b1021;
-  font-weight: 700;
-  cursor: pointer;
-}
+  button {
+    @include action-button(0.6rem, 1rem);
 
-.composer button.cancel {
-  background: transparent;
-  color: #f8fafc;
-  border: 1px solid #334155;
+    &.cancel {
+      @include ghost-button;
+    }
+  }
 }
 
 .composer button:disabled,

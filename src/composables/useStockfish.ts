@@ -19,7 +19,7 @@ interface PendingAnalysis {
 const START_FEN = 'startpos'
 const INITIAL_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'
 const WORKER_STARTUP_TIMEOUT_MS = 15000
-const ANALYSIS_TIMEOUT_MS = 30000
+const ANALYSIS_TIMEOUT_MS = 45000
 type AnalysisCancelReason =
   | 'timeout'
   | 'user'

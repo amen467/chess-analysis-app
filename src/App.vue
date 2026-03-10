@@ -97,6 +97,10 @@ onBeforeUnmount(() => {
 </template>
 
 <style lang="scss">
+$desktop-min: 961px;
+$desktop-max: 1439px;
+$mobile-max: 960px;
+
 .app-shell {
   --analysis-height: 395px;
   --sidebar-chat-min-height: 300px;
@@ -121,44 +125,45 @@ onBeforeUnmount(() => {
   text-transform: uppercase;
   letter-spacing: 0.08em;
   font-size: 0.75rem;
-  color: #64748b;
+  color: var(--color-text-subtle);
   font-weight: 700;
 }
 
 h1 {
   margin: 0.35rem 0 0;
   font-size: 1.6rem;
-  color: #0f172a;
+  color: var(--color-text-primary);
 }
 
 .header-actions {
   display: flex;
   gap: 0.6rem;
-}
 
-.header-actions button {
-  border-radius: 10px;
-  padding: 0.65rem 1rem;
-  font-weight: 700;
-  border: 1px solid #cbd5e1;
-  background: #fff;
-  color: #0f172a;
-  cursor: pointer;
-}
+  button {
+    border-radius: 10px;
+    padding: 0.65rem 1rem;
+    font-weight: 700;
+    border: 1px solid var(--color-border-muted);
+    background: var(--color-surface-light);
+    color: var(--color-text-primary);
+    cursor: pointer;
 
-.header-actions .primary {
-  background: linear-gradient(135deg, #22d3ee, #3b82f6);
-  color: #0b1021;
-  border: none;
-}
+    &.primary {
+      background: var(--gradient-accent);
+      color: var(--color-surface-dark);
+      border: none;
+    }
 
-.header-actions .ghost {
-  background: transparent;
-}
+    &.ghost {
+      background: transparent;
+      color: var(--color-text-inverse);
+    }
 
-.header-actions button:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
+    &:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+  }
 }
 
 .layout {
@@ -172,24 +177,24 @@ h1 {
   display: grid;
   gap: 0.6rem;
   padding: 1rem;
-  border: 1px solid #dbe2ea;
+  border: 1px solid var(--color-border-light);
   border-radius: 12px;
-  background: #ffffff;
-}
+  background: var(--color-surface-dark);
 
-.importer label {
-  font-weight: 700;
-  font-size: 0.9rem;
-  color: #0f172a;
-}
+  label {
+    font-weight: 700;
+    font-size: 0.9rem;
+    color: var(--color-text-inverse);
+  }
 
-.importer textarea {
-  min-height: 120px;
-  resize: vertical;
-  border: 1px solid #cbd5e1;
-  border-radius: 10px;
-  padding: 0.7rem;
-  font: inherit;
+  textarea {
+    min-height: 120px;
+    resize: vertical;
+    border: 1px solid var(--color-border-muted);
+    border-radius: 10px;
+    padding: 0.7rem;
+    font: inherit;
+  }
 }
 
 .importer-actions {
@@ -201,18 +206,24 @@ h1 {
 .import-status {
   margin: 0;
   font-size: 0.9rem;
+
+  &.success {
+    color: #166534;
+  }
+
+  &.error {
+    color: var(--color-danger);
+  }
 }
 
-.import-status.success {
-  color: #166534;
-}
-
-.import-status.error {
-  color: #b91c1c;
+.board-area,
+.moves-area,
+.analysis-area,
+.chat-area {
+  grid-column: 1;
 }
 
 .board-area {
-  grid-column: 1;
   min-width: 0;
 }
 
@@ -226,31 +237,25 @@ h1 {
 }
 
 .analysis-area {
-  grid-column: 1;
   min-height: 0;
 }
 
-.moves-area {
-  grid-column: 1;
-}
-
 .chat-area {
-  grid-column: 1;
   min-height: 0;
   overflow: auto;
 }
 
 .analysis-area .analysis-panel {
   height: 100%;
-  background: #0b1021;
-  color: #f8fafc;
+  background: var(--color-surface-dark);
+  color: var(--color-text-inverse);
 }
 
 .chat-area .chat-window {
   height: 100%;
 }
 
-@media (min-width: 961px) {
+@media (min-width: $desktop-min) {
   .layout {
     grid-template-columns: minmax(0, 1fr) var(--sidebar-width);
   }
@@ -274,23 +279,16 @@ h1 {
 
   .moves-area {
     grid-column: 1 / span 2;
-    padding-right: 0rem;
-  }
-
-  .moves-area,
-  .chat-area,
-  .analysis-area {
-    padding: 0rem;
   }
 }
 
-@media (min-width: 961px) and (max-width: 1439px) {
+@media (min-width: $desktop-min) and (max-width: $desktop-max) {
   .app-shell {
     --analysis-height: clamp(240px, 26vw, 395px);
   }
 }
 
-@media (max-width: 960px) {
+@media (max-width: $mobile-max) {
   .layout {
     grid-template-columns: 1fr;
   }
@@ -307,6 +305,10 @@ h1 {
   .header-actions {
     flex-wrap: wrap;
     justify-content: flex-start;
+  }
+
+  .chat-area .chat-window {
+    max-height: 800px;
   }
 }
 </style>

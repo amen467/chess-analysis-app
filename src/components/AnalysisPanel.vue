@@ -142,7 +142,7 @@ const formatPvLine = (line: string[], fen: string) => {
   grid-template-rows: auto minmax(0, 1fr);
   gap: 1rem;
   padding: 1rem;
-  background: #ffffff;
+  background: var(--color-surface-light);
   border: 1px solid #e2e8f0;
   border-radius: 10px;
   box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
@@ -178,7 +178,7 @@ const formatPvLine = (line: string[], fen: string) => {
   align-items: center;
   gap: 0.4rem;
   font-size: 0.85rem;
-  color: #f8fafc;
+  color: var(--color-text-inverse);
 }
 
 .toggle input {
@@ -198,38 +198,38 @@ const formatPvLine = (line: string[], fen: string) => {
   align-items: center;
   gap: 0.4rem;
   font-size: 0.85rem;
-  color: #f8fafc;
+  color: var(--color-text-inverse);
 }
 
 .control input {
   width: 4.2rem;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--color-border-muted);
   border-radius: 8px;
   padding: 0.25rem 0.4rem;
 }
 
 .cancel-button {
-  border: 1px solid #334155;
+  border: 1px solid var(--color-border-strong);
   border-radius: 8px;
   padding: 0.45rem 0.75rem;
   background: transparent;
-  color: #f8fafc;
+  color: var(--color-text-inverse);
   cursor: pointer;
   font-weight: 700;
 }
 
 .cancel-button:focus-visible {
-  outline: 3px solid #38bdf8;
+  outline: 3px solid var(--color-focus);
   outline-offset: 2px;
 }
 
 .hint {
-  color: #f8fafc;
+  color: var(--color-text-inverse);
   margin: 0.5rem 0 0;
 }
 
 .error {
-  color: #b91c1c;
+  color: var(--color-danger);
   margin: 0.5rem 0 0;
 }
 
@@ -253,6 +253,6 @@ const formatPvLine = (line: string[], fen: string) => {
 
 .pv-list code {
   font-size: 0.85rem;
-  color: #f8fafc;
+  color: var(--color-text-inverse);
 }
 </style>

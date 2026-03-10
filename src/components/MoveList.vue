@@ -58,52 +58,6 @@ const jumpToPly = (ply: number) => {
 </template>
 
 <style scoped lang="scss">
-header {
-  font-weight: 600;
-  margin-bottom: 0.5rem;
-}
-
-ol {
-  display: flex;
-  margin: 0;
-  padding-left: 0;
-  color: white;
-  font-size: 20px;
-  gap: 1.3rem;
-  flex-wrap: wrap;
-  list-style: none;
-}
-
-li {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-}
-
-.move-number {
-  color: #94a3b8;
-}
-
-.ply {
-  border: 1px solid #334155;
-  border-radius: 6px;
-  background: transparent;
-  color: #e2e8f0;
-  padding: 0.15rem 0.45rem;
-  font: inherit;
-  cursor: pointer;
-}
-
-.ply:hover {
-  border-color: #38bdf8;
-  color: #bae6fd;
-}
-
-.empty {
-  color: #9ca3af;
-  margin-top: 0.25rem;
-}
-
 .move-list {
   padding: 1rem;
   background: #0f172a;
@@ -111,11 +65,51 @@ li {
   border-radius: 10px;
   max-height: 300px;
   overflow: auto;
+
+  header {
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+  }
+
+  ol {
+    display: flex;
+    margin: 0;
+    padding-left: 0;
+    color: #fff;
+    font-size: 20px;
+    gap: 1.3rem;
+    flex-wrap: wrap;
+    list-style: none;
+  }
+
+  li {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+  }
 }
 
-.move-list h2 {
-  margin: 0 0 0.5rem;
-  font-size: 1.1rem;
-  letter-spacing: 0.02em;
+.move-number {
+  color: var(--color-text-muted);
+}
+
+.ply {
+  border: 1px solid var(--color-border-strong);
+  border-radius: 6px;
+  background: transparent;
+  color: #e2e8f0;
+  padding: 0.15rem 0.45rem;
+  font: inherit;
+  cursor: pointer;
+
+  &:hover {
+    border-color: var(--color-focus);
+    color: #bae6fd;
+  }
+}
+
+.empty {
+  color: #9ca3af;
+  margin-top: 0.25rem;
 }
 </style>

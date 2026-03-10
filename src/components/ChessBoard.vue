@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { Chess } from 'chess.js'
+import type { Square } from 'chess.js'
 import '@chrisoakman/chessboardjs/dist/chessboard-1.0.0.min.css'
 
 interface BoardApi {
@@ -56,6 +57,7 @@ const playedMoves = ref<PlayedMove[]>([])
 const currentPly = ref(0)
 let board: BoardApi | null = null
 let boardResizeObserver: ResizeObserver | null = null
+let selectedSourceSquare: Square | null = null
 const onWindowResize = () => {
   board?.resize?.()
 }
@@ -133,6 +135,7 @@ const ensureThemeLibrary = async () => {
 }
 
 const syncBoardToCursor = () => {
+  clearSelectedSquare()
   game.reset()
   for (let i = 0; i < currentPly.value; i += 1) {
     const move = playedMoves.value[i]
@@ -141,6 +144,34 @@ const syncBoardToCursor = () => {
   }
 
   board?.position(game.fen(), false)
+}
+
+const isBoardSquare = (value: string): value is Square => /^[a-h][1-8]$/.test(value)
+
+const getSquareElement = (square: Square) => {
+  if (!boardEl.value) return null
+  return boardEl.value.querySelector(`[data-square="${square}"]`) as HTMLElement | null
+}
+
+const clearSelectedSquare = () => {
+  if (!selectedSourceSquare) return
+  getSquareElement(selectedSourceSquare)?.classList.remove('click-selected')
+  selectedSourceSquare = null
+}
+
+const selectSquare = (square: Square) => {
+  clearSelectedSquare()
+  selectedSourceSquare = square
+  getSquareElement(square)?.classList.add('click-selected')
+}
+
+const squareFromEventTarget = (target: EventTarget | null): Square | null => {
+  if (!(target instanceof Element)) return null
+  const squareEl = target.closest('.square-55d63')
+  if (!(squareEl instanceof HTMLElement)) return null
+  if (!boardEl.value?.contains(squareEl)) return null
+  const square = squareEl.dataset.square ?? null
+  return square && isBoardSquare(square) ? square : null
 }
 
 const emitMoveList = () => {
@@ -169,6 +200,31 @@ const setPly = (nextPly: number) => {
   if (clampedPly === currentPly.value) return false
   currentPly.value = clampedPly
   syncAndEmitPosition()
+  return true
+}
+
+const applyMove = (source: Square, target: Square) => {
+  const move = game.move({
+    from: source,
+    to: target,
+    promotion: 'q',
+  })
+  if (!move) return false
+
+  if (currentPly.value < playedMoves.value.length) {
+    playedMoves.value = playedMoves.value.slice(0, currentPly.value)
+  }
+
+  playedMoves.value.push({
+    from: source,
+    to: target,
+    san: move.san,
+    promotion: move.promotion as PromotionPiece | undefined,
+  })
+  currentPly.value = playedMoves.value.length
+  emitMoveList()
+  emitPosition()
+  emitPgn()
   return true
 }
 
@@ -247,6 +303,60 @@ const goToEnd = () => {
   setPly(playedMoves.value.length)
 }
 
+const onBoardPointerUp = (event: PointerEvent) => {
+  if (!boardEl.value || !board) return
+  const clickedSquare = squareFromEventTarget(event.target)
+  if (!clickedSquare) {
+    clearSelectedSquare()
+    return
+  }
+
+  if (game.isGameOver()) {
+    clearSelectedSquare()
+    return
+  }
+
+  const clickedPiece = game.get(clickedSquare)
+  const isOwnPiece = Boolean(clickedPiece && clickedPiece.color === game.turn())
+
+  if (!selectedSourceSquare) {
+    if (isOwnPiece) {
+      selectSquare(clickedSquare)
+    } else {
+      clearSelectedSquare()
+    }
+    return
+  }
+
+  if (clickedSquare === selectedSourceSquare) {
+    clearSelectedSquare()
+    return
+  }
+
+  if (isOwnPiece) {
+    selectSquare(clickedSquare)
+    return
+  }
+
+  const moved = applyMove(selectedSourceSquare, clickedSquare)
+  clearSelectedSquare()
+  if (moved) {
+    board.position(game.fen(), false)
+  }
+}
+
+const onGlobalPointerDown = (event: PointerEvent) => {
+  if (!selectedSourceSquare) return
+  const target = event.target
+  if (!(target instanceof Node)) {
+    clearSelectedSquare()
+    return
+  }
+  if (!boardEl.value?.contains(target)) {
+    clearSelectedSquare()
+  }
+}
+
 onMounted(async () => {
   if (!boardEl.value) return
   emit('moves-updated', [])
@@ -270,35 +380,35 @@ onMounted(async () => {
 
     const turn = game.turn() as BoardColor
     const pieceColor = piece[0] as BoardColor
-    return turn === pieceColor
+    const canDrag = turn === pieceColor
+    if (canDrag) {
+      clearSelectedSquare()
+    }
+    return canDrag
   }
 
   const onDrop = (source: string, target: string) => {
     // Cancel if user drops outside the board or back on the origin square.
-    if (target === 'offboard' || source === target) return 'snapback'
-
-    const move = game.move({
-      from: source,
-      to: target,
-      promotion: 'q',
-    })
-
-    if (!move) return 'snapback'
-
-    if (currentPly.value < playedMoves.value.length) {
-      playedMoves.value = playedMoves.value.slice(0, currentPly.value)
+    if (!isBoardSquare(source)) return 'snapback'
+    if (target === 'offboard') {
+      clearSelectedSquare()
+      return 'snapback'
     }
 
-    playedMoves.value.push({
-      from: source,
-      to: target,
-      san: move.san,
-      promotion: move.promotion as PromotionPiece | undefined,
-    })
-    currentPly.value = playedMoves.value.length
-    emitMoveList()
-    emitPosition()
-    emitPgn()
+    if (source === target) {
+      const clickedPiece = game.get(source)
+      if (clickedPiece && clickedPiece.color === game.turn()) {
+        selectSquare(source)
+      } else {
+        clearSelectedSquare()
+      }
+      return 'snapback'
+    }
+
+    if (!isBoardSquare(source) || !isBoardSquare(target)) return 'snapback'
+    clearSelectedSquare()
+    const moved = applyMove(source, target)
+    if (!moved) return 'snapback'
 
     return undefined
   }
@@ -348,6 +458,8 @@ onMounted(async () => {
     emitPgn()
   }
 
+  boardEl.value.addEventListener('pointerup', onBoardPointerUp)
+  window.addEventListener('pointerdown', onGlobalPointerDown)
   window.addEventListener('keydown', onKeyDown)
 })
 
@@ -368,6 +480,9 @@ watch(
 )
 
 onBeforeUnmount(() => {
+  clearSelectedSquare()
+  boardEl.value?.removeEventListener('pointerup', onBoardPointerUp)
+  window.removeEventListener('pointerdown', onGlobalPointerDown)
   window.removeEventListener('keydown', onKeyDown)
   window.removeEventListener('resize', onWindowResize)
   boardResizeObserver?.disconnect()
@@ -428,9 +543,6 @@ onBeforeUnmount(() => {
   width: 100%;
   min-width: 0;
   gap: 0.75rem;
-  padding: 1rem;
-  border-radius: 12px;
-  background: #ffffff;
 }
 
 .board-root {
@@ -453,6 +565,10 @@ onBeforeUnmount(() => {
   color: var(--board-dark-notation) !important;
 }
 
+.board-root :deep(.square-55d63.click-selected) {
+  box-shadow: inset 0 0 0 3px var(--color-focus);
+}
+
 .board-nav {
   width: 100%;
   display: flex;
@@ -465,17 +581,17 @@ onBeforeUnmount(() => {
   min-width: 4.5rem;
   min-height: 2.75rem;
   padding: 0.35rem 0.5rem;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--color-border-muted);
   border-radius: 8px;
-  background: #ffffff;
-  color: #0f172a;
+  background: var(--color-surface-light);
+  color: var(--color-text-primary);
   font-weight: 700;
   cursor: pointer;
   font-size: 1.5rem;
 }
 
 .board-nav button:focus-visible {
-  outline: 3px solid #38bdf8;
+  outline: 3px solid var(--color-focus);
   outline-offset: 2px;
 }
 
