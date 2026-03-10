@@ -16,6 +16,7 @@ interface PendingAnalysis {
 
 const START_FEN = 'startpos'
 const INITIAL_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'
+const WORKER_STARTUP_TIMEOUT_MS = 15000
 
 export function useStockfish() {
   const isReady = ref(false)
@@ -27,6 +28,9 @@ export function useStockfish() {
   let worker: Worker | null = null
   let readyPromise: Promise<void> | null = null
   let readyResolver: (() => void) | null = null
+  let readyRejecter: ((reason?: unknown) => void) | null = null
+  let workerStartupTimeout: ReturnType<typeof setTimeout> | null = null
+  let sawUciOk = false
   let pending: PendingAnalysis | null = null
   let lastRequestedDepth = 12
   let currentAnalysisFen = INITIAL_FEN
@@ -39,6 +43,59 @@ export function useStockfish() {
   const resetAnalysis = () => {
     bestLines.value = []
     evaluation.value = null
+  }
+
+  const clearStartupTimeout = () => {
+    if (workerStartupTimeout === null) return
+    clearTimeout(workerStartupTimeout)
+    workerStartupTimeout = null
+  }
+
+  const resolveReadyState = () => {
+    clearStartupTimeout()
+    readyResolver?.()
+    readyResolver = null
+    readyRejecter = null
+    readyPromise = null
+  }
+
+  const rejectReadyState = (message: string) => {
+    clearStartupTimeout()
+    readyRejecter?.(new Error(message))
+    readyResolver = null
+    readyRejecter = null
+    readyPromise = null
+  }
+
+  const rejectPendingAnalysis = (message: string) => {
+    if (!pending) return
+    pending.reject(new Error(message))
+    pending = null
+  }
+
+  const terminateWorker = (sendQuit: boolean) => {
+    if (!worker) return
+    if (sendQuit) {
+      try {
+        worker.postMessage('quit')
+      } catch {
+        // Ignore worker post failures during teardown.
+      }
+    }
+    worker.removeEventListener('message', handleWorkerMessage as EventListener)
+    worker.removeEventListener('error', handleWorkerError)
+    worker.terminate()
+    worker = null
+  }
+
+  const failWorkerSession = (message: string) => {
+    isAnalyzing.value = false
+    isReady.value = false
+    sawUciOk = false
+    lastError.value = message
+    rejectReadyState(message)
+    rejectPendingAnalysis(message)
+    terminateWorker(false)
   }
 
   const parseUciMove = (move: string) => {
@@ -111,9 +168,16 @@ export function useStockfish() {
     if (!line) return
 
     if (line === 'uciok') {
+      sawUciOk = true
+      post('isready')
+      return
+    }
+
+    if (line === 'readyok') {
+      if (!sawUciOk) return
       isReady.value = true
-      readyResolver?.()
-      readyResolver = null
+      lastError.value = null
+      resolveReadyState()
       return
     }
 
@@ -130,29 +194,43 @@ export function useStockfish() {
     }
   }
 
-  const handleWorkerError = () => {
-    isAnalyzing.value = false
+  const handleWorkerError = (event: ErrorEvent) => {
+    const detail = event.message?.trim()
+    const message = detail ? `Stockfish worker crashed: ${detail}` : 'Stockfish worker crashed.'
+    failWorkerSession(message)
+  }
+
+  const createWorker = () => {
+    const workerSource = `${stockfishWorkerUrl}#${encodeURIComponent(stockfishWasmUrl)}`
+    worker = new Worker(workerSource)
+    worker.addEventListener('message', handleWorkerMessage as EventListener)
+    worker.addEventListener('error', handleWorkerError)
+
+    readyPromise = new Promise<void>((resolve, reject) => {
+      readyResolver = resolve
+      readyRejecter = reject
+    })
+
+    const timeoutSeconds = Math.round(WORKER_STARTUP_TIMEOUT_MS / 1000)
+    workerStartupTimeout = setTimeout(() => {
+      failWorkerSession(`Stockfish startup timed out after ${timeoutSeconds}s.`)
+    }, WORKER_STARTUP_TIMEOUT_MS)
+
+    sawUciOk = false
     isReady.value = false
-    lastError.value = 'Stockfish worker crashed.'
-    pending?.reject(new Error(lastError.value))
-    pending = null
+    post('uci')
   }
 
   const ensureWorker = async () => {
     if (worker && isReady.value) return
-    if (!worker) {
-      const workerSource = `${stockfishWorkerUrl}#${encodeURIComponent(stockfishWasmUrl)}`
-      worker = new Worker(workerSource)
-      worker.addEventListener('message', handleWorkerMessage as EventListener)
-      worker.addEventListener('error', handleWorkerError)
-      readyPromise = new Promise<void>((resolve) => {
-        readyResolver = resolve
-      })
-      post('uci')
-      post('isready')
+
+    if (!worker || !readyPromise) {
+      createWorker()
     }
 
-    if (!readyPromise) return
+    if (!readyPromise) {
+      throw new Error('Stockfish failed to create a startup session.')
+    }
     await readyPromise
   }
 
@@ -194,15 +272,16 @@ export function useStockfish() {
   }
 
   const destroy = () => {
-    if (!worker) return
-    stop()
-    post('quit')
-    worker.terminate()
-    worker = null
-    readyPromise = null
-    readyResolver = null
+    const shutdownMessage = 'Stockfish engine stopped.'
+    clearStartupTimeout()
+    rejectReadyState(shutdownMessage)
+    rejectPendingAnalysis(shutdownMessage)
+    sawUciOk = false
+    isAnalyzing.value = false
     isReady.value = false
-    pending = null
+    if (!worker) return
+    post('stop')
+    terminateWorker(true)
   }
 
   const summary = computed(() => ({
