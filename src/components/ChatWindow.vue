@@ -40,8 +40,10 @@ const lockKey = () => {
 
 const sendMessage = async () => {
   if (!draft.value.trim() || sending.value) return
-  await gameStore.sendChatMessage(draft.value, includeCurrentPosition.value)
-  draft.value = ''
+  const sent = await gameStore.sendChatMessage(draft.value, includeCurrentPosition.value)
+  if (sent) {
+    draft.value = ''
+  }
 }
 
 const cancelMessage = () => {

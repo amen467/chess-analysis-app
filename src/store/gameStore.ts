@@ -155,7 +155,7 @@ export const useGameStore = defineStore('game', () => {
   }
 
   const sendChatMessage = async (text: string, includeCurrentPosition: boolean) => {
-    await send(text, {
+    return await send(text, {
       includeCurrentPosition,
       currentFen: currentFen.value,
       currentPgn: currentPgn.value,

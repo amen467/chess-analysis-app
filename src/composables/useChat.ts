@@ -264,11 +264,11 @@ export function useChat() {
   }
 
   const send = async (text: string, options: SendOptions = {}) => {
-    if (!text.trim()) return
-    if (sending.value) return
+    if (!text.trim()) return false
+    if (sending.value) return false
     if (!apiKey.value.trim()) {
       lastError.value = 'Add your API key before sending messages.'
-      return
+      return false
     }
 
     const userText = text.trim()
@@ -351,6 +351,7 @@ export function useChat() {
       lastResponseId.value = payload.id || null
       const assistantText = extractAssistantText(payload) || 'No response text returned.'
       messages.value.push({ role: 'assistant', text: assistantText })
+      return true
     } catch (error) {
       const isAbortError = error instanceof DOMException && error.name === 'AbortError'
       let message: string
@@ -372,6 +373,7 @@ export function useChat() {
       if (shouldAppendAssistantError) {
         messages.value.push({ role: 'assistant', text: `Error: ${message}` })
       }
+      return false
     } finally {
       clearActiveRequestState()
       sending.value = false
