@@ -38,6 +38,7 @@ export const useGameStore = defineStore('game', () => {
     evaluation,
     lastError: analysisError,
     start,
+    cancelAnalysis,
     destroy,
     analyzePosition,
   } = useStockfish()
@@ -108,6 +109,10 @@ export const useGameStore = defineStore('game', () => {
 
   const teardownEngine = () => {
     destroy()
+  }
+
+  const cancelEngineAnalysis = () => {
+    cancelAnalysis()
   }
 
   const setEngineEnabled = async (enabled: boolean) => {
@@ -189,6 +194,7 @@ export const useGameStore = defineStore('game', () => {
     requestJumpToPly,
     setEngineEnabled,
     runAnalysis,
+    cancelEngineAnalysis,
     initializeEngine,
     teardownEngine,
     loadChatState,

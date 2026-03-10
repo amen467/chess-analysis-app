@@ -16,6 +16,7 @@ const emit = defineEmits<{
   'update:enabled': [value: boolean]
   'update:depth': [value: number]
   'update:multiPv': [value: number]
+  'cancel-analysis': []
 }>()
 
 const formatPawns = (centipawns: number) => {
@@ -43,6 +44,10 @@ const onMultiPvInput = (event: Event) => {
 const onEnabledChange = (event: Event) => {
   const target = event.target as HTMLInputElement
   emit('update:enabled', target.checked)
+}
+
+const cancelAnalysis = () => {
+  emit('cancel-analysis')
 }
 
 const MAX_PV_PLIES_DISPLAY = 13
@@ -94,6 +99,7 @@ const formatPvLine = (line: string[], fen: string) => {
         Lines
         <input type="number" min="1" max="40" :value="multiPv" @input="onMultiPvInput" />
       </label>
+      <button v-if="loading" type="button" class="cancel-button" @click="cancelAnalysis">Cancel</button>
     </div>
     <div class="analysis-body">
       <p v-if="!enabled" class="hint">Engine is off.</p>
@@ -185,6 +191,21 @@ const formatPvLine = (line: string[], fen: string) => {
   border: 1px solid #cbd5e1;
   border-radius: 8px;
   padding: 0.25rem 0.4rem;
+}
+
+.cancel-button {
+  border: 1px solid #334155;
+  border-radius: 8px;
+  padding: 0.45rem 0.75rem;
+  background: transparent;
+  color: #f8fafc;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.cancel-button:focus-visible {
+  outline: 3px solid #38bdf8;
+  outline-offset: 2px;
 }
 
 .hint {

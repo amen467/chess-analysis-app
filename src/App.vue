@@ -85,6 +85,7 @@ onBeforeUnmount(() => {
             :error="analysisError"
             :evaluation="evaluation"
             @update:enabled="gameStore.setEngineEnabled"
+            @cancel-analysis="gameStore.cancelEngineAnalysis"
           />
         </section>
         <section class="chat-area">

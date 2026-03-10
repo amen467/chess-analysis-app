@@ -17,6 +17,7 @@ interface PendingAnalysis {
 const START_FEN = 'startpos'
 const INITIAL_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'
 const WORKER_STARTUP_TIMEOUT_MS = 15000
+const ANALYSIS_TIMEOUT_MS = 30000
 
 export function useStockfish() {
   const isReady = ref(false)
@@ -30,6 +31,7 @@ export function useStockfish() {
   let readyResolver: (() => void) | null = null
   let readyRejecter: ((reason?: unknown) => void) | null = null
   let workerStartupTimeout: ReturnType<typeof setTimeout> | null = null
+  let analysisTimeout: ReturnType<typeof setTimeout> | null = null
   let sawUciOk = false
   let pending: PendingAnalysis | null = null
   let lastRequestedDepth = 12
@@ -51,6 +53,12 @@ export function useStockfish() {
     workerStartupTimeout = null
   }
 
+  const clearAnalysisTimeout = () => {
+    if (analysisTimeout === null) return
+    clearTimeout(analysisTimeout)
+    analysisTimeout = null
+  }
+
   const resolveReadyState = () => {
     clearStartupTimeout()
     readyResolver?.()
@@ -67,7 +75,12 @@ export function useStockfish() {
     readyPromise = null
   }
 
-  const rejectPendingAnalysis = (message: string) => {
+  const abortPendingAnalysis = (message: string, persistError = false) => {
+    clearAnalysisTimeout()
+    isAnalyzing.value = false
+    if (persistError) {
+      lastError.value = message
+    }
     if (!pending) return
     pending.reject(new Error(message))
     pending = null
@@ -94,7 +107,7 @@ export function useStockfish() {
     sawUciOk = false
     lastError.value = message
     rejectReadyState(message)
-    rejectPendingAnalysis(message)
+    abortPendingAnalysis(message)
     terminateWorker(false)
   }
 
@@ -184,6 +197,7 @@ export function useStockfish() {
     parseInfoLine(line)
 
     if (line.startsWith('bestmove')) {
+      clearAnalysisTimeout()
       isAnalyzing.value = false
       if (pending && evaluation.value) {
         pending.resolve(evaluation.value)
@@ -242,14 +256,14 @@ export function useStockfish() {
   const analyzePosition = async (fen: string, options: AnalyzeOptions = {}) => {
     await start()
     resetAnalysis()
+    lastError.value = null
     isAnalyzing.value = true
 
     lastRequestedDepth = options.depth ?? 12
     const multiPv = options.multiPv ?? 3
 
     if (pending) {
-      pending.reject(new Error('Analysis replaced by a newer request.'))
-      pending = null
+      abortPendingAnalysis('Analysis replaced by a newer request.')
     }
 
     const position = fen.trim() ? `fen ${fen}` : START_FEN
@@ -259,23 +273,35 @@ export function useStockfish() {
     post(`position ${position}`)
     post(`setoption name MultiPV value ${multiPv}`)
     post(`go depth ${lastRequestedDepth}`)
+    const timeoutSeconds = Math.round(ANALYSIS_TIMEOUT_MS / 1000)
+    analysisTimeout = setTimeout(() => {
+      post('stop')
+      abortPendingAnalysis(`Analysis timed out after ${timeoutSeconds}s.`, true)
+    }, ANALYSIS_TIMEOUT_MS)
 
     return new Promise<EngineEvaluation>((resolve, reject) => {
       pending = { resolve, reject }
     })
   }
 
-  const stop = () => {
-    if (!worker) return
+  const cancelAnalysis = () => {
+    if (!pending && !isAnalyzing.value) return
     post('stop')
-    isAnalyzing.value = false
+    abortPendingAnalysis('Analysis canceled by user.')
+  }
+
+  const stop = () => {
+    if (!pending && !isAnalyzing.value) return
+    post('stop')
+    abortPendingAnalysis('Analysis stopped.')
   }
 
   const destroy = () => {
     const shutdownMessage = 'Stockfish engine stopped.'
     clearStartupTimeout()
+    clearAnalysisTimeout()
     rejectReadyState(shutdownMessage)
-    rejectPendingAnalysis(shutdownMessage)
+    abortPendingAnalysis(shutdownMessage)
     sawUciOk = false
     isAnalyzing.value = false
     isReady.value = false
@@ -300,6 +326,7 @@ export function useStockfish() {
     summary,
     start,
     stop,
+    cancelAnalysis,
     destroy,
     analyzePosition,
   }

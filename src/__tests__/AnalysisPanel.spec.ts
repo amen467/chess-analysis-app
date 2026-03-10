@@ -63,4 +63,23 @@ describe('AnalysisPanel', () => {
     expect(wrapper.text()).toContain('#1')
     expect(wrapper.text()).toContain('1. e4 e5 2. Nf3')
   })
+
+  it('shows a cancel control while analyzing and emits cancel-analysis', async () => {
+    const wrapper = mount(AnalysisPanel, {
+      props: {
+        enabled: true,
+        ready: true,
+        loading: true,
+        depth: 18,
+        multiPv: 1,
+        currentFen: START_FEN,
+        evaluation: null,
+      },
+    })
+
+    const cancelButton = wrapper.find('button.cancel-button')
+    expect(cancelButton.exists()).toBe(true)
+    await cancelButton.trigger('click')
+    expect(wrapper.emitted('cancel-analysis')?.length).toBe(1)
+  })
 })

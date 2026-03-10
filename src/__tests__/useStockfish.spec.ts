@@ -130,4 +130,49 @@ describe('useStockfish', () => {
     expect(stockfish.lastError.value).toBe('Stockfish startup timed out after 15s.')
     expect(worker?.terminated).toBe(true)
   })
+
+  it('allows canceling an in-flight analysis', async () => {
+    const stockfish = useStockfish()
+    const analyzePromise = stockfish.analyzePosition(INITIAL_FEN, { depth: 18, multiPv: 1 })
+    const analyzeErrorPromise = analyzePromise.then(
+      () => null,
+      (error) => error as Error,
+    )
+
+    const worker = MockWorker.instances[0]
+    expect(worker).toBeDefined()
+    worker?.emitMessage('uciok')
+    worker?.emitMessage('readyok')
+    await flushMacroTask()
+
+    stockfish.cancelAnalysis()
+
+    const analyzeError = await analyzeErrorPromise
+    expect(analyzeError?.message).toBe('Analysis canceled by user.')
+    expect(stockfish.isAnalyzing.value).toBe(false)
+    expect(stockfish.lastError.value).toBeNull()
+    expect(worker?.posted[worker.posted.length - 1]).toBe('stop')
+  })
+
+  it('times out stalled analysis requests', async () => {
+    vi.useFakeTimers()
+    const stockfish = useStockfish()
+    const analyzePromise = stockfish.analyzePosition(INITIAL_FEN, { depth: 20, multiPv: 2 })
+    const analyzeErrorPromise = analyzePromise.then(
+      () => null,
+      (error) => error as Error,
+    )
+
+    const worker = MockWorker.instances[0]
+    expect(worker).toBeDefined()
+    worker?.emitMessage('uciok')
+    worker?.emitMessage('readyok')
+    await Promise.resolve()
+
+    await vi.advanceTimersByTimeAsync(30000)
+    const analyzeError = await analyzeErrorPromise
+    expect(analyzeError?.message).toBe('Analysis timed out after 30s.')
+    expect(stockfish.isAnalyzing.value).toBe(false)
+    expect(stockfish.lastError.value).toBe('Analysis timed out after 30s.')
+  })
 })
