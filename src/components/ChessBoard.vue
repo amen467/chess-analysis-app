@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { Chess } from 'chess.js'
-import type { Square } from 'chess.js'
+import type { Move as ChessMove, Square } from 'chess.js'
 import '@chrisoakman/chessboardjs/dist/chessboard-1.0.0.min.css'
 
 interface BoardApi {
   position: (fen: string, useAnimation?: boolean) => void
+  orientation?: (orientation?: 'white' | 'black' | 'flip') => 'white' | 'black'
   destroy?: () => void
   resize?: () => void
 }
@@ -38,6 +39,12 @@ interface JumpToPlyPayload {
   ply: number
 }
 
+interface PendingPromotion {
+  source: Square
+  target: Square
+  options: PromotionPiece[]
+}
+
 const props = defineProps<{
   importPgn?: PgnImportPayload
   jumpToPly?: JumpToPlyPayload
@@ -55,9 +62,13 @@ const boardEl = ref<HTMLElement | null>(null)
 const game = new Chess()
 const playedMoves = ref<PlayedMove[]>([])
 const currentPly = ref(0)
+const boardOrientation = ref<'white' | 'black'>('white')
+const pendingPromotion = ref<PendingPromotion | null>(null)
 let board: BoardApi | null = null
 let boardResizeObserver: ResizeObserver | null = null
 let selectedSourceSquare: Square | null = null
+let highlightedTargetSquares: Square[] = []
+let dragHoverSquare: Square | null = null
 const onWindowResize = () => {
   board?.resize?.()
 }
@@ -135,6 +146,7 @@ const ensureThemeLibrary = async () => {
 }
 
 const syncBoardToCursor = () => {
+  pendingPromotion.value = null
   clearSelectedSquare()
   game.reset()
   for (let i = 0; i < currentPly.value; i += 1) {
@@ -153,7 +165,54 @@ const getSquareElement = (square: Square) => {
   return boardEl.value.querySelector(`[data-square="${square}"]`) as HTMLElement | null
 }
 
+const clearLegalTargetSquares = () => {
+  for (const square of highlightedTargetSquares) {
+    getSquareElement(square)?.classList.remove('legal-target')
+  }
+  highlightedTargetSquares = []
+}
+
+const clearDragHoverSquare = () => {
+  if (!dragHoverSquare) return
+  getSquareElement(dragHoverSquare)?.classList.remove('drag-legal-target')
+  dragHoverSquare = null
+}
+
+const isPromotionPiece = (value: string | undefined): value is PromotionPiece => {
+  return value === 'q' || value === 'r' || value === 'b' || value === 'n'
+}
+
+const getLegalMovesFromSquare = (source: Square) => {
+  return game.moves({ square: source, verbose: true }) as ChessMove[]
+}
+
+const setLegalTargetSquares = (source: Square) => {
+  clearLegalTargetSquares()
+  const targets = new Set<Square>()
+  for (const move of getLegalMovesFromSquare(source)) {
+    targets.add(move.to)
+  }
+  highlightedTargetSquares = [...targets]
+  for (const square of highlightedTargetSquares) {
+    getSquareElement(square)?.classList.add('legal-target')
+  }
+}
+
+const getPromotionOptions = (source: Square, target: Square): PromotionPiece[] => {
+  const promotionMoves = getLegalMovesFromSquare(source).filter(
+    (move) => move.to === target && isPromotionPiece(move.promotion),
+  )
+  if (!promotionMoves.length) return []
+  const promotionOrder: PromotionPiece[] = ['q', 'r', 'b', 'n']
+  const available = new Set<PromotionPiece>(
+    promotionMoves.map((move) => move.promotion as PromotionPiece),
+  )
+  return promotionOrder.filter((piece) => available.has(piece))
+}
+
 const clearSelectedSquare = () => {
+  clearLegalTargetSquares()
+  clearDragHoverSquare()
   if (!selectedSourceSquare) return
   getSquareElement(selectedSourceSquare)?.classList.remove('click-selected')
   selectedSourceSquare = null
@@ -163,6 +222,7 @@ const selectSquare = (square: Square) => {
   clearSelectedSquare()
   selectedSourceSquare = square
   getSquareElement(square)?.classList.add('click-selected')
+  setLegalTargetSquares(square)
 }
 
 const squareFromEventTarget = (target: EventTarget | null): Square | null => {
@@ -203,13 +263,17 @@ const setPly = (nextPly: number) => {
   return true
 }
 
-const applyMove = (source: Square, target: Square) => {
-  const move = game.move({
-    from: source,
-    to: target,
-    promotion: 'q',
-  })
-  if (!move) return false
+const applyMove = (source: Square, target: Square, promotion?: PromotionPiece) => {
+  let move: ChessMove
+  try {
+    move = game.move({
+      from: source,
+      to: target,
+      promotion,
+    }) as ChessMove
+  } catch {
+    return false
+  }
 
   if (currentPly.value < playedMoves.value.length) {
     playedMoves.value = playedMoves.value.slice(0, currentPly.value)
@@ -226,6 +290,49 @@ const applyMove = (source: Square, target: Square) => {
   emitPosition()
   emitPgn()
   return true
+}
+
+const openPromotionPicker = (source: Square, target: Square, options: PromotionPiece[]) => {
+  pendingPromotion.value = { source, target, options }
+}
+
+const closePromotionPicker = () => {
+  pendingPromotion.value = null
+}
+
+const resolveMoveAttempt = (source: Square, target: Square) => {
+  const promotionOptions = getPromotionOptions(source, target)
+  if (!promotionOptions.length) {
+    const moved = applyMove(source, target)
+    if (!moved) return false
+    return true
+  }
+  openPromotionPicker(source, target, promotionOptions)
+  return 'promotion'
+}
+
+const confirmPromotion = (piece: PromotionPiece) => {
+  if (!pendingPromotion.value) return
+  const { source, target, options } = pendingPromotion.value
+  if (!options.includes(piece)) return
+  const moved = applyMove(source, target, piece)
+  closePromotionPicker()
+  clearSelectedSquare()
+  if (moved) {
+    board?.position(game.fen(), false)
+  }
+}
+
+const cancelPromotion = () => {
+  closePromotionPicker()
+  clearSelectedSquare()
+}
+
+const promotionLabel = (piece: PromotionPiece) => {
+  if (piece === 'q') return 'Queen'
+  if (piece === 'r') return 'Rook'
+  if (piece === 'b') return 'Bishop'
+  return 'Knight'
 }
 
 const applyImportedPgn = (pgnText: string) => {
@@ -303,8 +410,16 @@ const goToEnd = () => {
   setPly(playedMoves.value.length)
 }
 
+const toggleBoardOrientation = () => {
+  const next = board?.orientation?.('flip')
+  if (!next) return
+  boardOrientation.value = next
+  clearSelectedSquare()
+}
+
 const onBoardPointerUp = (event: PointerEvent) => {
   if (!boardEl.value || !board) return
+  if (pendingPromotion.value) return
   const clickedSquare = squareFromEventTarget(event.target)
   if (!clickedSquare) {
     clearSelectedSquare()
@@ -338,10 +453,14 @@ const onBoardPointerUp = (event: PointerEvent) => {
     return
   }
 
-  const moved = applyMove(selectedSourceSquare, clickedSquare)
-  clearSelectedSquare()
-  if (moved) {
+  const moveResult = resolveMoveAttempt(selectedSourceSquare, clickedSquare)
+  if (moveResult === true) {
+    clearSelectedSquare()
     board.position(game.fen(), false)
+    return
+  }
+  if (moveResult === false) {
+    clearSelectedSquare()
   }
 }
 
@@ -355,6 +474,10 @@ const onGlobalPointerDown = (event: PointerEvent) => {
   if (!boardEl.value?.contains(target)) {
     clearSelectedSquare()
   }
+}
+
+const isLegalTargetForSource = (source: Square, target: Square) => {
+  return getLegalMovesFromSquare(source).some((move) => move.to === target)
 }
 
 onMounted(async () => {
@@ -388,6 +511,7 @@ onMounted(async () => {
   }
 
   const onDrop = (source: string, target: string) => {
+    clearDragHoverSquare()
     // Cancel if user drops outside the board or back on the origin square.
     if (!isBoardSquare(source)) return 'snapback'
     if (target === 'offboard') {
@@ -406,11 +530,20 @@ onMounted(async () => {
     }
 
     if (!isBoardSquare(source) || !isBoardSquare(target)) return 'snapback'
+    const moveResult = resolveMoveAttempt(source, target)
+    if (moveResult === 'promotion') return 'snapback'
+    if (moveResult !== true) return 'snapback'
     clearSelectedSquare()
-    const moved = applyMove(source, target)
-    if (!moved) return 'snapback'
 
     return undefined
+  }
+
+  const onDragMove = (location: string, _prev: string, source: string) => {
+    clearDragHoverSquare()
+    if (!isBoardSquare(location) || !isBoardSquare(source)) return
+    if (!isLegalTargetForSource(source, location)) return
+    dragHoverSquare = location
+    getSquareElement(location)?.classList.add('drag-legal-target')
   }
 
   const activePieceTheme = getPieceTheme(globalWindow)
@@ -420,6 +553,7 @@ onMounted(async () => {
   const boardConfig: Record<string, unknown> = {
     draggable: true,
     onDragStart,
+    onDragMove,
     onDrop,
     onSnapEnd: () => board?.position(game.fen(), false),
     position: 'start',
@@ -438,6 +572,10 @@ onMounted(async () => {
   }
 
   board = globalWindow.Chessboard(boardEl.value, boardConfig)
+  const initialOrientation = board.orientation?.()
+  if (initialOrientation) {
+    boardOrientation.value = initialOrientation
+  }
   requestAnimationFrame(() => {
     board?.resize?.()
   })
@@ -494,8 +632,35 @@ onBeforeUnmount(() => {
 
 <template>
   <section ref="boardContainerEl" class="chess-board">
-    <div ref="boardEl" class="board-root"></div>
+    <div class="board-stage">
+      <div ref="boardEl" class="board-root"></div>
+      <div v-if="pendingPromotion" class="promotion-overlay">
+        <div class="promotion-picker" role="dialog" aria-label="Choose promotion piece">
+          <p class="promotion-title">Promote to:</p>
+          <div class="promotion-options">
+            <button
+              v-for="piece in pendingPromotion.options"
+              :key="piece"
+              type="button"
+              @click="confirmPromotion(piece)"
+            >
+              {{ promotionLabel(piece) }}
+            </button>
+          </div>
+          <button type="button" class="promotion-cancel" @click="cancelPromotion">Cancel</button>
+        </div>
+      </div>
+    </div>
     <nav class="board-nav" aria-label="Move navigation">
+      <button
+        type="button"
+        class="flip-button"
+        :title="boardOrientation === 'white' ? 'View from Black side' : 'View from White side'"
+        @click="toggleBoardOrientation"
+      >
+        Flip
+      </button>
+      <div class="nav-arrows">
       <button
         type="button"
         :disabled="currentPly === 0"
@@ -532,6 +697,7 @@ onBeforeUnmount(() => {
       >
         <span aria-hidden="true">&gt;&gt;</span>
       </button>
+      </div>
     </nav>
   </section>
 </template>
@@ -543,6 +709,13 @@ onBeforeUnmount(() => {
   width: 100%;
   min-width: 0;
   gap: 0.75rem;
+}
+
+.board-stage {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  position: relative;
 }
 
 .board-root {
@@ -569,12 +742,88 @@ onBeforeUnmount(() => {
   box-shadow: inset 0 0 0 3px var(--color-focus);
 }
 
+.board-root :deep(.square-55d63.legal-target) {
+  box-shadow: inset 0 0 0 3px rgba(56, 189, 248, 0.6);
+}
+
+.board-root :deep(.highlight1-32417),
+.board-root :deep(.highlight2-9c5d2) {
+  box-shadow: none !important;
+}
+
+.board-root :deep(.highlight1-32417),
+.board-root :deep(.square-55d63.drag-legal-target) {
+  box-shadow: inset 0 0 0 3px var(--color-focus) !important;
+}
+
+.promotion-picker {
+  width: min(88%, 420px);
+  padding: 0.75rem;
+  border-radius: 10px;
+  border: 1px solid var(--color-border-muted);
+  background: var(--color-surface-dark);
+  color: var(--color-text-inverse);
+  display: grid;
+  gap: 0.6rem;
+  box-shadow: 0 20px 50px rgba(15, 23, 42, 0.45);
+}
+
+.promotion-overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(15, 23, 42, 0.45);
+  border-radius: 8px;
+  z-index: 2;
+}
+
+.promotion-title {
+  margin: 0;
+  font-weight: 700;
+}
+
+.promotion-options {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.promotion-options button,
+.promotion-cancel {
+  border: 1px solid var(--color-border-muted);
+  border-radius: 8px;
+  padding: 0.45rem 0.65rem;
+  background: var(--color-surface-light);
+  color: var(--color-text-primary);
+  font-weight: 700;
+  cursor: pointer;
+  width: 100%;
+}
+
+.promotion-cancel {
+  background: transparent;
+  color: var(--color-text-inverse);
+}
+
 .board-nav {
   width: 100%;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.nav-arrows {
   display: flex;
   justify-content: center;
   gap: 0.75rem;
   flex-wrap: wrap;
+}
+
+.flip-button {
+  min-width: 5.5rem;
+  font-size: 1rem;
 }
 
 .board-nav button {
@@ -607,6 +856,16 @@ onBeforeUnmount(() => {
   }
 
   .board-nav {
+    grid-template-columns: 1fr;
+    gap: 0.5rem;
+  }
+
+  .flip-button {
+    justify-self: start;
+  }
+
+  .nav-arrows {
+    justify-content: flex-start;
     gap: 0.4rem;
   }
 
