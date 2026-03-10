@@ -1,84 +1,84 @@
 # Chess Analysis App
 
+Status updated: March 10, 2026
+
 Client-side chess analysis workspace built with Vue 3 + TypeScript.
 
-The app lets you:
+## Current App State
 
-- Import a PGN and navigate through the game
-- Analyze the current position with Stockfish (MultiPV)
-- Ask chess questions in an in-app chat powered by OpenAI
+The app currently supports:
+
+- PGN import and interactive board navigation
+- On-demand Stockfish analysis for the current position (MultiPV)
+- In-app chess chat powered by OpenAI Responses API
+- Client-side encrypted API key storage
 
 ## Core Features
 
 ### PGN + Board
 
-- Paste and import PGN text
-- Drag pieces on the board to explore lines
-- Navigate by:
-  - Move list click
+- Paste/import PGN text with validation feedback
+- Interactive board using `@chrisoakman/chessboardjs` + `chess.js`
+- Move pieces by drag/drop or click-to-move
+- Promotion piece picker for promotion moves
+- Flip board orientation
+- Navigate with:
+  - Move list clicks
   - Board controls (`<<`, `<`, `>`, `>>`)
   - Keyboard arrows (`Left` / `Right`)
-- Current FEN and PGN are kept in app state and shared with analysis/chat
+- Current FEN + PGN are synced into shared app state for analysis/chat
 
 ### Stockfish Analysis
 
-- Browser worker-based Stockfish integration (`stockfish-18-lite-single`)
-- Engine controls:
-  - Enable/disable engine
+- Browser worker integration with `stockfish-18-lite-single` + WASM
+- UCI startup handshake (`uciok` then `readyok`)
+- 15s worker startup timeout and 45s analysis timeout
+- Analysis controls:
+  - Engine on/off toggle
   - Depth (1-30)
   - MultiPV lines (1-40)
-- Analysis panel shows:
-  - Best lines
-  - Eval in pawns or mate score
-  - SAN-formatted PV lines
+  - Cancel in-flight analysis
+- Output includes:
+  - Principal eval (cp or mate)
+  - Ranked best lines
+  - SAN-formatted principal variations
 
 ### Chat (OpenAI Responses API)
 
-- Uses `gpt-4.1-mini` through `https://api.openai.com/v1/responses`
+- Uses `gpt-4.1-mini` via `https://api.openai.com/v1/responses`
 - Supports multi-turn context with `previous_response_id`
-- Optional toggle to include current FEN/PGN in the prompt
-- Request controls:
-  - Timeout after 45s
-  - Cancel in-flight request from the UI
+- Optional inclusion of current FEN/PGN in prompts
+- 45s request timeout and user cancel support
 
-## API Key Policy (Required)
+## API Key Policy
 
-You must provide your own OpenAI API key.  
-This app does not ship with a server-side key and does not proxy OpenAI calls through a backend.
+You must provide your own OpenAI API key.
+This project does not include a backend key proxy.
 
 ### Key Storage Model
 
-- Key can be saved encrypted in `localStorage`
-- Encryption uses PBKDF2-SHA256 + AES-GCM
+- API key can be stored encrypted in `localStorage`
+- Encryption: PBKDF2-SHA256 + AES-GCM
 - Passphrase must be at least 8 characters
-- Passphrase is cached only in `sessionStorage` for unlock convenience
+- Passphrase is cached only in `sessionStorage`
 - Key is decrypted only in-memory while unlocked
 
-## Security Headers and CSP
+## Security Headers + CSP
 
-The project now includes a centralized CSP + security header policy in:
+Header policy is centralized in `src/config/securityHeaders.ts`.
 
-- `src/config/securityHeaders.ts`
+- `npm run dev` serves CSP as `Content-Security-Policy-Report-Only`
+- `npm run preview` serves enforced `Content-Security-Policy`
+- Policy validation is covered by `src/__tests__/securityHeaders.spec.ts`
 
-How it is applied:
+Mirror equivalent headers at your deployment edge (CDN/proxy) for production.
 
-- `npm run dev`: CSP is sent as `Content-Security-Policy-Report-Only` (diagnostic mode)
-- `npm run preview`: CSP is sent as enforced `Content-Security-Policy` (production-like behavior)
+## Testing Status
 
-Validation:
+Latest local run (`npm run test:unit -- --run`) on March 10, 2026:
 
-- Header/CSP policy is unit-tested in `src/__tests__/securityHeaders.spec.ts`
-
-When you choose a deployment provider, mirror the same headers at the CDN/proxy layer.
-
-## Stockfish Readiness Hardening
-
-Engine startup now uses a proper UCI handshake:
-
-- Wait for `uciok`
-- Then wait for `readyok`
-
-Startup has a 15s timeout and fails cleanly instead of hanging.
+- 6 test files passing
+- 18 tests passing
 
 ## Tech Stack
 
@@ -88,53 +88,48 @@ Startup has a 15s timeout and fails cleanly instead of hanging.
 - `chess.js`
 - `@chrisoakman/chessboardjs`
 - Stockfish Web Worker + WASM
-- Vite + Vitest + ESLint
+- Vite + Vitest + ESLint + Oxlint
 
 ## Requirements
 
 - Node.js `^20.19.0 || >=22.12.0`
-- Modern browser with support for:
+- Modern browser with:
   - Web Workers
   - WebAssembly
   - Web Crypto API
 
 ## Local Development
 
-Install dependencies:
-
 ```sh
 npm install
-```
-
-Run dev server:
-
-```sh
 npm run dev
 ```
 
-Open the URL shown by Vite (usually `http://localhost:5173`).
+Open the URL shown by Vite (typically `http://localhost:5173`).
 
 ## Available Scripts
 
-- `npm run dev` - Start local development server
-- `npm run build` - Type-check and create production build
+- `npm run dev` - Start dev server
+- `npm run build` - Type-check + production build
 - `npm run preview` - Preview production build locally
 - `npm run test:unit` - Run Vitest unit tests
-- `npm run lint` - Run oxlint + eslint with fixes
+- `npm run lint` - Run Oxlint + ESLint with fixes
 - `npm run format` - Run Prettier on `src/`
 
-## Current Scope / Known Gaps
+## Known Gaps (Out of Scope for Current Build)
 
-- Analysis is position-based (not full-game batch scoring yet)
-- No ELO estimation or CPL/blunder summary yet
+- No full-game batch scoring pipeline yet (analysis is per current position)
+- No CPL/blunder/inaccuracy classification yet
+- No ELO/strength estimation layer yet
 
 ## Project Structure
 
-- `src/App.vue` - Main layout and feature wiring
-- `src/components/ChessBoard.vue` - Board, PGN import, and navigation
-- `src/components/MoveList.vue` - Clickable move list
-- `src/components/AnalysisPanel.vue` - Engine controls and output
-- `src/components/ChatWindow.vue` - Chat UI and API key controls
-- `src/composables/useStockfish.ts` - Worker lifecycle and UCI analysis
-- `src/composables/useChat.ts` - OpenAI requests and encrypted key handling
-- `src/store/gameStore.ts` - Shared app state/actions
+- `src/App.vue` - Main layout + store wiring
+- `src/store/gameStore.ts` - Central app orchestration state/actions
+- `src/components/ChessBoard.vue` - PGN import, board interaction, navigation
+- `src/components/MoveList.vue` - Clickable jump-to-ply move list
+- `src/components/AnalysisPanel.vue` - Engine controls + evaluation display
+- `src/components/ChatWindow.vue` - Chat UI + key management controls
+- `src/composables/useStockfish.ts` - Worker lifecycle + UCI analysis
+- `src/composables/useChat.ts` - OpenAI request flow + key encryption lifecycle
+- `src/config/securityHeaders.ts` - CSP and security header policy
