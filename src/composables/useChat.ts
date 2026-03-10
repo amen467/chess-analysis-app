@@ -8,6 +8,7 @@ export interface ChatMessage {
 interface SendOptions {
   includeCurrentPosition?: boolean
   currentFen?: string
+  currentPgn?: string
 }
 
 const OPENAI_API_URL = 'https://api.openai.com/v1/responses'
@@ -254,14 +255,26 @@ export function useChat() {
       content: [{ type: 'input_text', text: message.text }],
     }))
 
-    if (options.includeCurrentPosition && options.currentFen && requestMessages.length > 0) {
+    if (
+      options.includeCurrentPosition &&
+      (options.currentFen || options.currentPgn) &&
+      requestMessages.length > 0
+    ) {
       const lastIndex = requestMessages.length - 1
       const lastMessage = requestMessages[lastIndex]
       if (lastMessage?.role === 'user') {
+        const contextLines: string[] = []
+        if (options.currentFen) {
+          contextLines.push(`Current position FEN: ${options.currentFen}`)
+        }
+        if (options.currentPgn?.trim()) {
+          contextLines.push(`Current game PGN:\n${options.currentPgn}`)
+        }
+
         lastMessage.content = [
           {
             type: 'input_text',
-            text: `${lastMessage.content[0]?.text ?? ''}\n\nCurrent position FEN: ${options.currentFen}`,
+            text: `${lastMessage.content[0]?.text ?? ''}\n\n${contextLines.join('\n\n')}`,
           },
         ]
       }
@@ -276,7 +289,7 @@ export function useChat() {
             content: [
               {
                 type: 'input_text',
-                text: 'You are a concise chess assistant inside a chess analysis app. Only answer questions related to the included chess game or chess more generally, such as rules, strategies, openings, tactics, etc. If a user asks about anything unrelated to chess, politely say that this assistant only answers chess-related questions.',
+                text: 'You are a concise chess assistant inside a chess analysis app. Only answer questions related to the included chess game or chess more generally, such as rules, strategies, openings, tactics, etc. If a user asks about anything unrelated to chess, politely say that this assistant only answers chess-related questions. If the question is about the current position and the PGN is not included, remind the user to check the "include current position" box in the app which originated the request.',
               },
             ],
           },

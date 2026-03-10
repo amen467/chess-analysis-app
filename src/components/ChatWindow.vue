@@ -4,6 +4,7 @@ import { useChat } from '@/composables/useChat'
 
 const props = defineProps<{
   currentFen: string
+  currentPgn: string
 }>()
 
 const draft = ref('')
@@ -57,6 +58,7 @@ const sendMessage = async () => {
   await send(draft.value, {
     includeCurrentPosition: includeCurrentPosition.value,
     currentFen: props.currentFen,
+    currentPgn: props.currentPgn,
   })
   draft.value = ''
 }

@@ -11,6 +11,7 @@ const pgnInput = ref('')
 const pgnImportRequest = ref<{ id: number; text: string }>()
 const pgnImportStatus = ref<{ ok: boolean; message: string }>()
 const currentFen = ref('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1')
+const currentPgn = ref('')
 const analysisDepth = ref(14)
 const analysisLines = ref(3)
 
@@ -34,6 +35,10 @@ const handlePgnImportStatus = (payload: { ok: boolean; message: string }) => {
 
 const handlePositionUpdated = (fen: string) => {
   currentFen.value = fen
+}
+
+const handlePgnUpdated = (pgn: string) => {
+  currentPgn.value = pgn
 }
 
 const runAnalysis = async () => {
@@ -86,6 +91,7 @@ onBeforeUnmount(() => {
           @moves-updated="handleMovesUpdated"
           @pgn-import-status="handlePgnImportStatus"
           @position-updated="handlePositionUpdated"
+          @pgn-updated="handlePgnUpdated"
         />
       </section>
       <section class="moves-area">
@@ -105,7 +111,7 @@ onBeforeUnmount(() => {
           />
         </section>
         <section class="chat-area">
-          <ChatWindow :current-fen="currentFen" />
+          <ChatWindow :current-fen="currentFen" :current-pgn="currentPgn" />
         </section>
       </section>
     </main>

@@ -1,7 +1,8 @@
 declare module '@chrisoakman/chessboardjs' {
   type BoardConfig = {
     draggable?: boolean
-    pieceTheme?: string
+    pieceTheme?: string | ((piece: string) => string)
+    boardTheme?: unknown
     position?: string
     showNotation?: boolean
   }

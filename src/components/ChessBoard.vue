@@ -8,6 +8,14 @@ interface BoardApi {
   destroy?: () => void
 }
 
+type PieceTheme = string | ((piece: string) => string)
+type ThemeWindow = Window & {
+  [key: string]: unknown
+  $?: unknown
+  jQuery?: unknown
+  Chessboard?: (elementOrId: string | HTMLElement, config: unknown) => BoardApi
+}
+
 type BoardColor = 'w' | 'b'
 type PromotionPiece = 'q' | 'r' | 'b' | 'n'
 
@@ -31,6 +39,7 @@ const emit = defineEmits<{
   'moves-updated': [moves: string[]]
   'pgn-import-status': [payload: { ok: boolean; message: string }]
   'position-updated': [fen: string]
+  'pgn-updated': [pgn: string]
 }>()
 
 const boardEl = ref<HTMLElement | null>(null)
@@ -38,6 +47,78 @@ const game = new Chess()
 const playedMoves = ref<PlayedMove[]>([])
 const currentPly = ref(0)
 let board: BoardApi | null = null
+
+const THEME_SCRIPT_ID = 'chessboardjs-themes-script'
+const THEME_SCRIPT_SRC = '/vendor/chessboardjs-themes.js'
+const PIECE_THEME_GLOBALS = ['uscf_theme', 'uscf_piece_theme']
+const BOARD_THEME_GLOBAL = 'uscf_board_theme'
+
+const getPieceTheme = (globalWindow: ThemeWindow) => {
+  for (const key of PIECE_THEME_GLOBALS) {
+    const value = globalWindow[key]
+    if (typeof value === 'string' || typeof value === 'function') {
+      return value as PieceTheme
+    }
+  }
+  return null
+}
+
+const getBoardTheme = (globalWindow: ThemeWindow) => {
+  const value = globalWindow[BOARD_THEME_GLOBAL]
+  return value ?? null
+}
+
+const applyBoardTheme = (theme: unknown) => {
+  if (!boardEl.value) return
+
+  const [light, dark] = Array.isArray(theme) ? theme : []
+  const lightColor = typeof light === 'string' ? light : null
+  const darkColor = typeof dark === 'string' ? dark : null
+
+  if (!lightColor || !darkColor) {
+    boardEl.value.style.removeProperty('--board-light-square')
+    boardEl.value.style.removeProperty('--board-dark-square')
+    boardEl.value.style.removeProperty('--board-light-notation')
+    boardEl.value.style.removeProperty('--board-dark-notation')
+    return
+  }
+
+  boardEl.value.style.setProperty('--board-light-square', lightColor)
+  boardEl.value.style.setProperty('--board-dark-square', darkColor)
+  boardEl.value.style.setProperty('--board-light-notation', darkColor)
+  boardEl.value.style.setProperty('--board-dark-notation', lightColor)
+}
+
+const ensureThemeLibrary = async () => {
+  const existing = document.getElementById(THEME_SCRIPT_ID) as HTMLScriptElement | null
+  if (existing) {
+    if (existing.dataset.loaded === 'true') return true
+    await new Promise<void>((resolve, reject) => {
+      existing.addEventListener('load', () => resolve(), { once: true })
+      existing.addEventListener('error', () => reject(new Error('Theme script failed to load.')), {
+        once: true,
+      })
+    })
+    return true
+  }
+
+  const script = document.createElement('script')
+  script.id = THEME_SCRIPT_ID
+  script.src = THEME_SCRIPT_SRC
+  script.async = true
+  script.dataset.loaded = 'false'
+
+  const loaded = await new Promise<boolean>((resolve) => {
+    script.onload = () => {
+      script.dataset.loaded = 'true'
+      resolve(true)
+    }
+    script.onerror = () => resolve(false)
+    document.head.appendChild(script)
+  })
+
+  return loaded
+}
 
 const syncBoardToCursor = () => {
   game.reset()
@@ -59,6 +140,10 @@ const emitMoveList = () => {
 
 const emitPosition = () => {
   emit('position-updated', game.fen())
+}
+
+const emitPgn = () => {
+  emit('pgn-updated', game.pgn())
 }
 
 const applyImportedPgn = (pgnText: string) => {
@@ -87,6 +172,7 @@ const applyImportedPgn = (pgnText: string) => {
   syncBoardToCursor()
   emitMoveList()
   emitPosition()
+  emitPgn()
   emit('pgn-import-status', {
     ok: true,
     message: `Imported ${playedMoves.value.length} move${playedMoves.value.length === 1 ? '' : 's'}.`,
@@ -157,16 +243,13 @@ onMounted(async () => {
   const jqueryModule = await import('jquery')
   const jquery = jqueryModule.default
 
-  const globalWindow = window as Window & {
-    $?: typeof jquery
-    jQuery?: typeof jquery
-    Chessboard?: (elementOrId: string | HTMLElement, config: unknown) => BoardApi
-  }
+  const globalWindow = window as unknown as ThemeWindow
 
   globalWindow.$ = jquery
   globalWindow.jQuery = jquery
 
   await import('@chrisoakman/chessboardjs/dist/chessboard-1.0.0.js')
+  const themeLibraryLoaded = await ensureThemeLibrary()
 
   if (!globalWindow.Chessboard) return
 
@@ -203,24 +286,42 @@ onMounted(async () => {
     currentPly.value = playedMoves.value.length
     emitMoveList()
     emitPosition()
+    emitPgn()
 
     return undefined
   }
 
-  board = globalWindow.Chessboard(boardEl.value, {
+  const activePieceTheme = getPieceTheme(globalWindow)
+  const activeBoardTheme = getBoardTheme(globalWindow)
+  applyBoardTheme(activeBoardTheme)
+
+  const boardConfig: Record<string, unknown> = {
     draggable: true,
     onDragStart,
     onDrop,
     onSnapEnd: () => board?.position(game.fen(), false),
     position: 'start',
     showNotation: true,
-    pieceTheme: '/chesspieces/wikipedia/{piece}.png',
-  })
+    pieceTheme: activePieceTheme || '/chesspieces/wikipedia/{piece}.png',
+  }
+
+  if (activeBoardTheme != null) {
+    boardConfig.boardTheme = activeBoardTheme
+  }
+
+  if (!themeLibraryLoaded) {
+    console.warn(`Theme library not found at ${THEME_SCRIPT_SRC}; using default board assets.`)
+  } else if (!activePieceTheme) {
+    console.warn(`Theme globals not found (${PIECE_THEME_GLOBALS.join(', ')}); using defaults.`)
+  }
+
+  board = globalWindow.Chessboard(boardEl.value, boardConfig)
 
   if (props.importPgn?.text) {
     applyImportedPgn(props.importPgn.text)
   } else {
     emitPosition()
+    emitPgn()
   }
 
   window.addEventListener('keydown', onKeyDown)
@@ -264,13 +365,26 @@ onBeforeUnmount(() => {
   width: 100%;
   gap: 0.75rem;
   padding: 1rem;
-  // border: 1px solid #d0d0d0;
   border-radius: 12px;
   background: #ffffff;
 }
 
 .board-root {
   width: 100%;
+  --board-light-square: #f0d9b5;
+  --board-dark-square: #b58863;
+  --board-light-notation: #b58863;
+  --board-dark-notation: #f0d9b5;
+}
+
+.board-root :deep(.white-1e1d7) {
+  background-color: var(--board-light-square) !important;
+  color: var(--board-light-notation) !important;
+}
+
+.board-root :deep(.black-3c85d) {
+  background-color: var(--board-dark-square) !important;
+  color: var(--board-dark-notation) !important;
 }
 
 .board-nav {
