@@ -3,6 +3,7 @@
 Client-side chess analysis workspace built with Vue 3 + TypeScript.
 
 The app lets you:
+
 - Import a PGN and navigate through the game
 - Analyze the current position with Stockfish (MultiPV)
 - Ask chess questions in an in-app chat powered by OpenAI
@@ -10,6 +11,7 @@ The app lets you:
 ## Core Features
 
 ### PGN + Board
+
 - Paste and import PGN text
 - Drag pieces on the board to explore lines
 - Navigate by:
@@ -19,6 +21,7 @@ The app lets you:
 - Current FEN and PGN are kept in app state and shared with analysis/chat
 
 ### Stockfish Analysis
+
 - Browser worker-based Stockfish integration (`stockfish-18-lite-single`)
 - Engine controls:
   - Enable/disable engine
@@ -30,6 +33,7 @@ The app lets you:
   - SAN-formatted PV lines
 
 ### Chat (OpenAI Responses API)
+
 - Uses `gpt-4.1-mini` through `https://api.openai.com/v1/responses`
 - Supports multi-turn context with `previous_response_id`
 - Optional toggle to include current FEN/PGN in the prompt
@@ -43,6 +47,7 @@ You must provide your own OpenAI API key.
 This app does not ship with a server-side key and does not proxy OpenAI calls through a backend.
 
 ### Key Storage Model
+
 - Key can be saved encrypted in `localStorage`
 - Encryption uses PBKDF2-SHA256 + AES-GCM
 - Passphrase must be at least 8 characters
@@ -52,6 +57,7 @@ This app does not ship with a server-side key and does not proxy OpenAI calls th
 ## Stockfish Readiness Hardening
 
 Engine startup now uses a proper UCI handshake:
+
 - Wait for `uciok`
 - Then wait for `readyok`
 
@@ -104,7 +110,6 @@ Open the URL shown by Vite (usually `http://localhost:5173`).
 
 - Analysis is position-based (not full-game batch scoring yet)
 - No ELO estimation or CPL/blunder summary yet
-- Test coverage is currently minimal
 
 ## Project Structure
 
