@@ -68,8 +68,8 @@ const sendMessage = async () => {
   <section class="chat-window">
     <header>Game Chat</header>
     <div class="api-key">
-      <label for="openai-key">ChatGPT API key</label>
-      <div class="api-key-controls">
+      <div class="api-key-header">
+        <label for="openai-key">ChatGPT API key</label>
         <input
           id="openai-key"
           v-model="keyDraft"
@@ -77,6 +77,8 @@ const sendMessage = async () => {
           placeholder="sk-..."
           autocomplete="off"
         />
+      </div>
+      <div class="api-key-controls">
         <button type="button" @click="saveKey">Save Encrypted</button>
         <button
           v-if="hasStoredEncryptedKey && !apiKey"
@@ -101,7 +103,7 @@ const sendMessage = async () => {
       <p class="api-key-note">Key is encrypted in local storage and decrypted only in-memory.</p>
     </div>
     <div class="transcript">
-      <p v-if="!messages.length" class="empty">Ask about the current position.</p>
+      <p v-if="!messages.length" class="empty"></p>
       <div v-else>
         <p v-for="(msg, index) in messages" :key="index" :class="msg.role">
           <strong>{{ msg.role === 'user' ? 'You' : 'Assistant' }}:</strong>&nbsp;
@@ -149,19 +151,26 @@ header {
   font-weight: 600;
 }
 
-.api-key-controls {
+.api-key-header {
   display: grid;
-  grid-template-columns: 1fr auto auto auto;
+  grid-template-columns: auto 1fr;
+  align-items: center;
   gap: 0.5rem;
 }
 
-.api-key-controls input {
+.api-key-header input {
   min-width: 0;
   padding: 0.55rem 0.7rem;
   border: 1px solid #1f2937;
   border-radius: 8px;
   background: #111827;
   color: #f8fafc;
+}
+
+.api-key-controls {
+  display: grid;
+  grid-template-columns: auto auto auto;
+  gap: 0.5rem;
 }
 
 .api-key-controls button {

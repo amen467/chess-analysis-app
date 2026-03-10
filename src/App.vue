@@ -9,11 +9,12 @@ import { useStockfish } from '@/composables/useStockfish'
 const moves = ref<string[]>([])
 const pgnInput = ref('')
 const pgnImportRequest = ref<{ id: number; text: string }>()
+const jumpToPlyRequest = ref<{ id: number; ply: number }>()
 const pgnImportStatus = ref<{ ok: boolean; message: string }>()
 const currentFen = ref('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1')
 const currentPgn = ref('')
-const analysisDepth = ref(14)
-const analysisLines = ref(3)
+const analysisDepth = ref(22)
+const analysisLines = ref(5)
 
 const { isReady, isAnalyzing, evaluation, lastError, start, destroy, analyzePosition } =
   useStockfish()
@@ -39,6 +40,13 @@ const handlePositionUpdated = (fen: string) => {
 
 const handlePgnUpdated = (pgn: string) => {
   currentPgn.value = pgn
+}
+
+const handlePlySelected = (ply: number) => {
+  jumpToPlyRequest.value = {
+    id: Date.now(),
+    ply,
+  }
 }
 
 const runAnalysis = async () => {
@@ -88,6 +96,7 @@ onBeforeUnmount(() => {
       <section class="board-area">
         <ChessBoard
           :import-pgn="pgnImportRequest"
+          :jump-to-ply="jumpToPlyRequest"
           @moves-updated="handleMovesUpdated"
           @pgn-import-status="handlePgnImportStatus"
           @position-updated="handlePositionUpdated"
@@ -95,7 +104,7 @@ onBeforeUnmount(() => {
         />
       </section>
       <section class="moves-area">
-        <MoveList :moves="moves" />
+        <MoveList :moves="moves" @ply-selected="handlePlySelected" />
       </section>
 
       <section class="sidebar-area">
@@ -105,6 +114,7 @@ onBeforeUnmount(() => {
             v-model:multi-pv="analysisLines"
             :ready="isReady"
             :loading="isAnalyzing"
+            :current-fen="currentFen"
             :error="lastError"
             :evaluation="evaluation"
             @run-analysis="runAnalysis"
@@ -120,10 +130,13 @@ onBeforeUnmount(() => {
 
 <style lang="scss">
 .app-shell {
+  --analysis-height: 395px;
+  --sidebar-chat-min-height: 300px;
+  --sidebar-width: clamp(320px, 32vw, 420px);
   min-height: 100vh;
   max-width: 1440px;
   margin: 0 auto;
-  padding: 2rem 1.5rem 3rem;
+  padding: 2rem 1rem 3rem;
   display: grid;
   gap: 1.5rem;
 }
@@ -232,25 +245,27 @@ h1 {
 
 .board-area {
   grid-column: 1;
+  min-width: 0;
 }
 
 .sidebar-area {
   grid-column: 1;
   grid-row: auto;
   display: grid;
+  grid-template-rows: auto auto;
   gap: 1rem;
+  min-height: 0;
 }
 
-.moves-area,
-.chat-area,
-.analysis-area {
-  padding: 0 1rem;
-}
+// .moves-area,
+// .chat-area,
+// .analysis-area {
+//   padding: 0 1rem;
+// }
 
 .analysis-area {
   grid-column: 1;
   min-height: 0;
-  // overflow: auto;
 }
 
 .moves-area {
@@ -260,7 +275,7 @@ h1 {
 
 .chat-area {
   grid-column: 1;
-  max-height: 400px;
+  min-height: 0;
   overflow: auto;
 }
 
@@ -276,7 +291,7 @@ h1 {
 
 @media (min-width: 961px) {
   .layout {
-    grid-template-columns: 2fr 1fr;
+    grid-template-columns: minmax(0, 1fr) var(--sidebar-width);
   }
 
   .board-area {
@@ -287,22 +302,13 @@ h1 {
   .sidebar-area {
     grid-column: 2;
     grid-row: 1;
-    grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-rows: var(--analysis-height) minmax(var(--sidebar-chat-min-height), 1fr);
     align-self: stretch;
     min-height: 0;
   }
 
-  .analysis-area {
-    // max-height: 450px;
-  }
-
   .analysis-area .analysis-panel {
     max-height: none;
-  }
-
-  .chat-area {
-    max-height: 408px;
-    min-height: 0;
   }
 
   .moves-area {
@@ -314,6 +320,12 @@ h1 {
   .chat-area,
   .analysis-area {
     padding: 0rem;
+  }
+}
+
+@media (min-width: 961px) and (max-width: 1439px) {
+  .app-shell {
+    --analysis-height: clamp(240px, 26vw, 395px);
   }
 }
 

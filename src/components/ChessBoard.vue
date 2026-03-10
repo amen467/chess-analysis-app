@@ -6,6 +6,7 @@ import '@chrisoakman/chessboardjs/dist/chessboard-1.0.0.min.css'
 interface BoardApi {
   position: (fen: string, useAnimation?: boolean) => void
   destroy?: () => void
+  resize?: () => void
 }
 
 type PieceTheme = string | ((piece: string) => string)
@@ -31,8 +32,14 @@ interface PgnImportPayload {
   text: string
 }
 
+interface JumpToPlyPayload {
+  id: number
+  ply: number
+}
+
 const props = defineProps<{
   importPgn?: PgnImportPayload
+  jumpToPly?: JumpToPlyPayload
 }>()
 
 const emit = defineEmits<{
@@ -42,11 +49,16 @@ const emit = defineEmits<{
   'pgn-updated': [pgn: string]
 }>()
 
+const boardContainerEl = ref<HTMLElement | null>(null)
 const boardEl = ref<HTMLElement | null>(null)
 const game = new Chess()
 const playedMoves = ref<PlayedMove[]>([])
 const currentPly = ref(0)
 let board: BoardApi | null = null
+let boardResizeObserver: ResizeObserver | null = null
+const onWindowResize = () => {
+  board?.resize?.()
+}
 
 const THEME_SCRIPT_ID = 'chessboardjs-themes-script'
 const THEME_SCRIPT_SRC = '/vendor/chessboardjs-themes.js'
@@ -316,6 +328,18 @@ onMounted(async () => {
   }
 
   board = globalWindow.Chessboard(boardEl.value, boardConfig)
+  requestAnimationFrame(() => {
+    board?.resize?.()
+  })
+
+  window.addEventListener('resize', onWindowResize)
+
+  if (typeof ResizeObserver !== 'undefined' && boardContainerEl.value) {
+    boardResizeObserver = new ResizeObserver(() => {
+      board?.resize?.()
+    })
+    boardResizeObserver.observe(boardContainerEl.value)
+  }
 
   if (props.importPgn?.text) {
     applyImportedPgn(props.importPgn.text)
@@ -335,15 +359,30 @@ watch(
   },
 )
 
+watch(
+  () => props.jumpToPly?.id,
+  () => {
+    if (!props.jumpToPly || !board) return
+    const clampedPly = Math.max(0, Math.min(props.jumpToPly.ply, playedMoves.value.length))
+    currentPly.value = clampedPly
+    syncBoardToCursor()
+    emitPosition()
+    emitPgn()
+  },
+)
+
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', onKeyDown)
+  window.removeEventListener('resize', onWindowResize)
+  boardResizeObserver?.disconnect()
+  boardResizeObserver = null
   board?.destroy?.()
   board = null
 })
 </script>
 
 <template>
-  <section class="chess-board">
+  <section ref="boardContainerEl" class="chess-board">
     <div ref="boardEl" class="board-root"></div>
     <div class="board-nav" aria-label="Move navigation">
       <button type="button" :disabled="currentPly === 0" @click="goToStart">&lt;&lt;</button>
@@ -363,6 +402,7 @@ onBeforeUnmount(() => {
   display: grid;
   place-items: center;
   width: 100%;
+  min-width: 0;
   gap: 0.75rem;
   padding: 1rem;
   border-radius: 12px;
@@ -371,6 +411,8 @@ onBeforeUnmount(() => {
 
 .board-root {
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
   --board-light-square: #f0d9b5;
   --board-dark-square: #b58863;
   --board-light-notation: #b58863;
@@ -391,11 +433,12 @@ onBeforeUnmount(() => {
   width: 100%;
   display: flex;
   justify-content: center;
-  gap: 1.5rem;
+  gap: 0.75rem;
+  flex-wrap: wrap;
 }
 
 .board-nav button {
-  min-width: 6.5rem;
+  min-width: 4.5rem;
   padding: 0.35rem 0.5rem;
   border: 1px solid #cbd5e1;
   border-radius: 8px;
@@ -403,11 +446,28 @@ onBeforeUnmount(() => {
   color: #0f172a;
   font-weight: 700;
   cursor: pointer;
-  font-size: 26px;
+  font-size: 1.5rem;
 }
 
 .board-nav button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+@media (max-width: 560px) {
+  .chess-board {
+    padding: 0.5rem;
+    gap: 0.5rem;
+  }
+
+  .board-nav {
+    gap: 0.4rem;
+  }
+
+  .board-nav button {
+    min-width: 2.6rem;
+    padding: 0.25rem 0.35rem;
+    font-size: 1rem;
+  }
 }
 </style>

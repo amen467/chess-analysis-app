@@ -36,6 +36,7 @@ interface ResponsesOutputItem {
 }
 
 interface ResponsesApiPayload {
+  id?: string
   output_text?: string
   output?: ResponsesOutputItem[]
 }
@@ -140,6 +141,7 @@ export function useChat() {
   const apiKey = ref('')
   const lastError = ref<string | null>(null)
   const hasStoredEncryptedKey = ref(false)
+  const lastResponseId = ref<string | null>(null)
 
   const loadApiKey = async () => {
     if (typeof window === 'undefined') return
@@ -197,6 +199,7 @@ export function useChat() {
     if (typeof window === 'undefined') return
     lastError.value = null
     apiKey.value = ''
+    lastResponseId.value = null
     window.localStorage.removeItem(API_KEY_STORAGE_KEY)
     window.localStorage.removeItem(LEGACY_API_KEY_STORAGE_KEY)
     window.sessionStorage.removeItem(SESSION_PASSPHRASE_KEY)
@@ -205,6 +208,7 @@ export function useChat() {
 
   const lockApiKey = () => {
     apiKey.value = ''
+    lastResponseId.value = null
     if (typeof window !== 'undefined') {
       window.sessionStorage.removeItem(SESSION_PASSPHRASE_KEY)
     }
@@ -250,38 +254,27 @@ export function useChat() {
     sending.value = true
     messages.value.push({ role: 'user', text: userText })
 
-    const requestMessages = messages.value.map((message) => ({
-      role: message.role,
-      content: [{ type: 'input_text', text: message.text }],
-    }))
-
-    if (
-      options.includeCurrentPosition &&
-      (options.currentFen || options.currentPgn) &&
-      requestMessages.length > 0
-    ) {
-      const lastIndex = requestMessages.length - 1
-      const lastMessage = requestMessages[lastIndex]
-      if (lastMessage?.role === 'user') {
-        const contextLines: string[] = []
-        if (options.currentFen) {
-          contextLines.push(`Current position FEN: ${options.currentFen}`)
-        }
-        if (options.currentPgn?.trim()) {
-          contextLines.push(`Current game PGN:\n${options.currentPgn}`)
-        }
-
-        lastMessage.content = [
-          {
-            type: 'input_text',
-            text: `${lastMessage.content[0]?.text ?? ''}\n\n${contextLines.join('\n\n')}`,
-          },
-        ]
+    let composedUserText = userText
+    if (options.includeCurrentPosition && (options.currentFen || options.currentPgn)) {
+      const contextLines: string[] = []
+      if (options.currentFen) {
+        contextLines.push(`Current position FEN: ${options.currentFen}`)
       }
+      if (options.currentPgn?.trim()) {
+        contextLines.push(`Current game PGN:\n${options.currentPgn}`)
+      }
+      composedUserText = `${composedUserText}\n\n${contextLines.join('\n\n')}`
     }
 
     try {
-      const requestPayload = {
+      const requestPayload: {
+        model: string
+        input: Array<{
+          role: 'system' | 'user'
+          content: Array<{ type: 'input_text'; text: string }>
+        }>
+        previous_response_id?: string
+      } = {
         model: OPENAI_MODEL,
         input: [
           {
@@ -293,8 +286,14 @@ export function useChat() {
               },
             ],
           },
-          ...requestMessages,
+          {
+            role: 'user',
+            content: [{ type: 'input_text', text: composedUserText }],
+          },
         ],
+      }
+      if (lastResponseId.value) {
+        requestPayload.previous_response_id = lastResponseId.value
       }
       console.log('OpenAI request payload:', requestPayload)
 
@@ -319,6 +318,7 @@ export function useChat() {
       }
 
       const payload = (await response.json()) as ResponsesApiPayload
+      lastResponseId.value = payload.id || null
       const assistantText = extractAssistantText(payload) || 'No response text returned.'
       messages.value.push({ role: 'assistant', text: assistantText })
     } catch (error) {
