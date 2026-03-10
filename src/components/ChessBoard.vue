@@ -390,16 +390,44 @@ onBeforeUnmount(() => {
 <template>
   <section ref="boardContainerEl" class="chess-board">
     <div ref="boardEl" class="board-root"></div>
-    <div class="board-nav" aria-label="Move navigation">
-      <button type="button" :disabled="currentPly === 0" @click="goToStart">&lt;&lt;</button>
-      <button type="button" :disabled="currentPly === 0" @click="goBack">&lt;</button>
-      <button type="button" :disabled="currentPly >= playedMoves.length" @click="goForward">
-        &gt;
+    <nav class="board-nav" aria-label="Move navigation">
+      <button
+        type="button"
+        :disabled="currentPly === 0"
+        aria-label="Go to first move"
+        title="Go to first move"
+        @click="goToStart"
+      >
+        <span aria-hidden="true">&lt;&lt;</span>
       </button>
-      <button type="button" :disabled="currentPly >= playedMoves.length" @click="goToEnd">
-        &gt;&gt;
+      <button
+        type="button"
+        :disabled="currentPly === 0"
+        aria-label="Go to previous move"
+        title="Go to previous move (Left Arrow)"
+        @click="goBack"
+      >
+        <span aria-hidden="true">&lt;</span>
       </button>
-    </div>
+      <button
+        type="button"
+        :disabled="currentPly >= playedMoves.length"
+        aria-label="Go to next move"
+        title="Go to next move (Right Arrow)"
+        @click="goForward"
+      >
+        <span aria-hidden="true">&gt;</span>
+      </button>
+      <button
+        type="button"
+        :disabled="currentPly >= playedMoves.length"
+        aria-label="Go to last move"
+        title="Go to last move"
+        @click="goToEnd"
+      >
+        <span aria-hidden="true">&gt;&gt;</span>
+      </button>
+    </nav>
   </section>
 </template>
 
@@ -445,6 +473,7 @@ onBeforeUnmount(() => {
 
 .board-nav button {
   min-width: 4.5rem;
+  min-height: 2.75rem;
   padding: 0.35rem 0.5rem;
   border: 1px solid #cbd5e1;
   border-radius: 8px;
@@ -453,6 +482,11 @@ onBeforeUnmount(() => {
   font-weight: 700;
   cursor: pointer;
   font-size: 1.5rem;
+}
+
+.board-nav button:focus-visible {
+  outline: 3px solid #38bdf8;
+  outline-offset: 2px;
 }
 
 .board-nav button:disabled {
@@ -471,7 +505,8 @@ onBeforeUnmount(() => {
   }
 
   .board-nav button {
-    min-width: 2.6rem;
+    min-width: 2.75rem;
+    min-height: 2.75rem;
     padding: 0.25rem 0.35rem;
     font-size: 1rem;
   }
