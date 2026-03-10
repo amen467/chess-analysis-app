@@ -75,9 +75,15 @@ export function useStockfish() {
     readyPromise = null
   }
 
-  const abortPendingAnalysis = (message: string, persistError = false) => {
+  const abortPendingAnalysis = (
+    message: string,
+    persistError = false,
+    stopAnalyzing = true,
+  ) => {
     clearAnalysisTimeout()
-    isAnalyzing.value = false
+    if (stopAnalyzing) {
+      isAnalyzing.value = false
+    }
     if (persistError) {
       lastError.value = message
     }
@@ -263,7 +269,8 @@ export function useStockfish() {
     const multiPv = options.multiPv ?? 3
 
     if (pending) {
-      abortPendingAnalysis('Analysis replaced by a newer request.')
+      abortPendingAnalysis('Analysis replaced by a newer request.', false, false)
+      isAnalyzing.value = true
     }
 
     const position = fen.trim() ? `fen ${fen}` : START_FEN

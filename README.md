@@ -54,6 +54,23 @@ This app does not ship with a server-side key and does not proxy OpenAI calls th
 - Passphrase is cached only in `sessionStorage` for unlock convenience
 - Key is decrypted only in-memory while unlocked
 
+## Security Headers and CSP
+
+The project now includes a centralized CSP + security header policy in:
+
+- `src/config/securityHeaders.ts`
+
+How it is applied:
+
+- `npm run dev`: CSP is sent as `Content-Security-Policy-Report-Only` (diagnostic mode)
+- `npm run preview`: CSP is sent as enforced `Content-Security-Policy` (production-like behavior)
+
+Validation:
+
+- Header/CSP policy is unit-tested in `src/__tests__/securityHeaders.spec.ts`
+
+When you choose a deployment provider, mirror the same headers at the CDN/proxy layer.
+
 ## Stockfish Readiness Hardening
 
 Engine startup now uses a proper UCI handshake:

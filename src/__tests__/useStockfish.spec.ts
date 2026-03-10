@@ -175,4 +175,33 @@ describe('useStockfish', () => {
     expect(stockfish.isAnalyzing.value).toBe(false)
     expect(stockfish.lastError.value).toBe('Analysis timed out after 30s.')
   })
+
+  it('keeps isAnalyzing true when replacing an in-flight analysis', async () => {
+    const stockfish = useStockfish()
+    const firstAnalysis = stockfish.analyzePosition(INITIAL_FEN, { depth: 12, multiPv: 1 })
+
+    const worker = MockWorker.instances[0]
+    expect(worker).toBeDefined()
+    worker?.emitMessage('uciok')
+    worker?.emitMessage('readyok')
+    await flushMacroTask()
+    expect(stockfish.isAnalyzing.value).toBe(true)
+
+    const firstAnalysisError = firstAnalysis.then(
+      () => null,
+      (error) => error as Error,
+    )
+    const secondAnalysis = stockfish.analyzePosition(INITIAL_FEN, { depth: 13, multiPv: 1 })
+    await flushMacroTask()
+
+    expect((await firstAnalysisError)?.message).toBe('Analysis replaced by a newer request.')
+    expect(stockfish.isAnalyzing.value).toBe(true)
+    expect(worker?.posted).toContain('go depth 13')
+
+    worker?.emitMessage('info depth 13 multipv 1 score cp 20 pv e2e4 e7e5')
+    worker?.emitMessage('bestmove e2e4')
+    await secondAnalysis
+
+    expect(stockfish.isAnalyzing.value).toBe(false)
+  })
 })
