@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@chrisoakman/chessboardjs": "^1.0.0",
+    "@vercel/analytics": "^2.0.1",
     "chess.js": "^1.4.0",
     "jquery": "^3.7.1",
     "pinia": "^3.0.4",
